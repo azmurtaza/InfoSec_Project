@@ -1,0 +1,6 @@
+pefile
+scikit-learn
+pandas
+numpy
+joblib
+customtkinter
