@@ -1,0 +1,62 @@
+[
+    {
+        "original_path": "C:/Downloads/virus.exe",
+        "timestamp": "2025-12-11T23:35:06.819923",
+        "threat_type": "Ransomware",
+        "status": "Missing"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-11T23:55:39.471205",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:\\Users\\husna\\Downloads\\infosec\\InfoSec_Project\\dummy_virus.exe",
+        "timestamp": "2025-12-12T00:03:22.570982",
+        "threat_type": "Test Threat",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:\\Users\\husna\\Downloads\\infosec\\InfoSec_Project\\dummy_virus.exe",
+        "timestamp": "2025-12-12T00:03:22.577730",
+        "threat_type": "Test Threat",
+        "status": "Deleted"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-12T00:07:50.892231",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "RestoredFromVault\\eicar.exe",
+        "timestamp": "2025-12-12T00:13:12.106363",
+        "threat_type": "Unknown (Orphan)",
+        "status": "Deleted"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-12T00:13:25.865300",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-12T00:14:49.445082",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-12T00:16:44.971608",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/eicar1.exe",
+        "timestamp": "2025-12-12T00:17:00.904958",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    }
+]

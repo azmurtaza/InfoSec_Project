@@ -72,6 +72,124 @@ def quarantine_file(file_path, threat_type="Generic Malware"):
     except Exception as e:
         return f"Error during quarantine: {e}"
 
+    
+def sync_quarantine_vault():
+    """
+    Syncs the log file with the actual files in the vault.
+    1. If file exists in vault but not log -> Add it (Unknown Threat).
+    2. If file in log (Quarantined) but not in vault -> Mark Deleted.
+    """
+    setup_directories()
+    
+    try:
+        with open(QUARANTINE_LOG_FILE, 'r') as f:
+            logs = json.load(f)
+    except:
+        logs = []
+        
+    # Map logs by locked filename (derived from original path)
+    log_map = {}
+    for entry in logs:
+        # Reconstruct locked name: basename + .LOCKED
+        locked_name = os.path.basename(entry['original_path']) + ".LOCKED"
+        log_map[locked_name] = entry
+
+    # 1. Scan Vault for unlogged files
+    vault_files = os.listdir(QUARANTINE_DIR)
+    for fname in vault_files:
+        if not fname.endswith(".LOCKED"):
+            continue
+            
+        if fname not in log_map:
+            # Found orphan file, add to log
+            original_name = fname.replace(".LOCKED", "")
+            # We don't know the full original path, so we guess/placeholder
+            # In a real app, we might store metadata in the file itself.
+            entry = {
+                "original_path": os.path.join("RestoredFromVault", original_name),
+                "timestamp": datetime.datetime.now().isoformat(),
+                "threat_type": "Unknown (Orphan)",
+                "status": "Quarantined"
+            }
+            logs.append(entry)
+            
+        else:
+            # File exists and is in log. Ensure status is Quarantined if it was marked otherwise?
+            # User might have manually put it back? 
+            # For now, trust the log unless it says 'Deleted' but file is there.
+            entry = log_map[fname]
+            if entry['status'] in ['Deleted', 'Restored']:
+                # Weird state: Log says gone, but file is here. Resurrect it.
+                entry['status'] = "Quarantined"
+
+    # 2. Check for missing files
+    for entry in logs:
+        if entry['status'] == "Quarantined":
+            locked_name = os.path.basename(entry['original_path']) + ".LOCKED"
+            if locked_name not in vault_files:
+                entry['status'] = "Missing"
+
+    # Save
+    with open(QUARANTINE_LOG_FILE, 'w') as f:
+        json.dump(logs, f, indent=4)
+
+def update_log_status(original_path, new_status):
+    """Helper to update the status of a log entry."""
+    try:
+        with open(QUARANTINE_LOG_FILE, 'r') as f:
+            logs = json.load(f)
+    except:
+        return
+
+    for entry in logs:
+        if entry['original_path'] == original_path:
+            # Update the most recent 'Quarantined' entry or just the last match
+            entry['status'] = new_status
+            
+    with open(QUARANTINE_LOG_FILE, 'w') as f:
+        json.dump(logs, f, indent=4)
+
+def restore_file(original_path):
+    """
+    Restores a file from quarantine to its original location.
+    """
+    setup_directories()
+    
+    file_name = os.path.basename(original_path)
+    locked_name = file_name + ".LOCKED"
+    source = os.path.join(QUARANTINE_DIR, locked_name)
+    
+    if not os.path.exists(source):
+        return f"Error: Quarantined file {locked_name} not found."
+        
+    try:
+        # Move back
+        shutil.move(source, original_path)
+        update_log_status(original_path, "Restored")
+        return f"SUCCESS: File restored to {original_path}"
+    except Exception as e:
+        return f"Error restoring file: {e}"
+
+def delete_quarantined_file(original_path):
+    """
+    Permanently deletes the file from quarantine.
+    """
+    setup_directories()
+    
+    file_name = os.path.basename(original_path)
+    locked_name = file_name + ".LOCKED"
+    source = os.path.join(QUARANTINE_DIR, locked_name)
+    
+    if not os.path.exists(source):
+        return f"Error: File {locked_name} already gone."
+        
+    try:
+        os.remove(source)
+        update_log_status(original_path, "Deleted")
+        return f"SUCCESS: File permanently deleted."
+    except Exception as e:
+        return f"Error deleting file: {e}"
+
 if __name__ == "__main__":
     # Test
     test_file = "test_virus.txt"
@@ -79,5 +197,9 @@ if __name__ == "__main__":
         f.write("I am a test virus")
     
     print(f"Created {test_file}")
-    result = quarantine_file(test_file, "Test Threat")
-    print(result)
+    res = quarantine_file(test_file, "Test Threat")
+    print(res)
+    
+    # input("Press enter to restore...")
+    # print(restore_file(os.path.abspath(test_file)))
+

@@ -12,6 +12,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 def train_model():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     dataset_path = os.path.join(script_dir, '..', 'data', 'dataset.csv')
+    new_dataset_path = os.path.join(script_dir, '..', 'data', 'new_dataset.csv')
     
     # Paths for artifacts
     models_dir = os.path.join(script_dir, '..', 'models')
@@ -22,12 +23,38 @@ def train_model():
     if not os.path.exists(models_dir):
         os.makedirs(models_dir)
 
-    print(f"[*] Loading dataset from: {dataset_path}")
-    try:
-        df = pd.read_csv(dataset_path)
-    except FileNotFoundError:
-        print("[!] Dataset not found!")
+    # --- Load Hybrid Dataset ---
+    dfs = []
+    
+    # 1. Load Original Dataset
+    if os.path.exists(dataset_path):
+        print(f"[*] Loading original dataset: {dataset_path}")
+        df_old = pd.read_csv(dataset_path)
+        dfs.append(df_old)
+    else:
+        print(f"[!] Original dataset not found at {dataset_path}")
+
+    # 2. Load New Dataset (Byte Features)
+    if os.path.exists(new_dataset_path):
+        print(f"[*] Loading new dataset: {new_dataset_path}")
+        df_new = pd.read_csv(new_dataset_path)
+        dfs.append(df_new)
+    else:
+        print(f"[*] New dataset not found at {new_dataset_path} (skipping)")
+
+    if not dfs:
+        print("[!] No datasets found! Exiting.")
         return
+
+    # 3. Merge
+    print("[*] Merging datasets...")
+    # pandas concat will align columns. Missing columns (e.g., Byte_X in old data) become NaN.
+    df = pd.concat(dfs, ignore_index=True)
+    
+    # Fill NaNs with 0. 
+    # Logic: If old data didn't have 'Byte_0', we assume 0 count (or acceptable missing value).
+    # If new data didn't have 'PE_Header', we assume 0 (not present).
+    df = df.fillna(0)
 
     # --- 1. Label Handling ---
     if 'class' in df.columns:

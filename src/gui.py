@@ -1,11 +1,12 @@
 
 import customtkinter as ctk
 import os
+import json
 import threading
 import time
 from tkinter import filedialog
 from scanner_engine import MalwareScanner
-from quarantine import quarantine_file
+from quarantine import quarantine_file, delete_quarantined_file, restore_file, sync_quarantine_vault
 
 # --- Configuration ---
 ctk.set_appearance_mode("Dark")
@@ -142,9 +143,108 @@ class AntivirusApp(ctk.CTk):
     # --- Page: Quarantine ---
     def setup_quarantine(self):
         frame = self.frames["quarantine"]
-        ctk.CTkLabel(frame, text="Quarantine Vault", font=ctk.CTkFont(size=24)).pack(pady=20)
-        ctk.CTkLabel(frame, text="Secure Storage for Locked Threats").pack(pady=10)
-        # In a real app, we would list files here from logs/quarantine.json
+        
+        # Header
+        header = ctk.CTkFrame(frame, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=20)
+        
+        ctk.CTkLabel(header, text="Quarantine Vault", font=ctk.CTkFont(size=24, weight="bold")).pack(side="left")
+        ctk.CTkButton(header, text="Refresh", width=100, command=self.load_quarantine_list).pack(side="right")
+        
+        ctk.CTkLabel(frame, text="Secure Storage for Locked Threats").pack(pady=(0, 10))
+
+        # List Area
+        self.quarantine_list = ctk.CTkScrollableFrame(frame, width=800, height=400)
+        self.quarantine_list.pack(pady=10, padx=20, fill="both", expand=True)
+        
+        # Load initial data
+        self.load_quarantine_list()
+
+
+    def load_quarantine_list(self):
+        # 1. Sync first to find any locked files not in logs (like eicar.exe)
+        sync_quarantine_vault()
+
+        # Clear existing
+        for widget in self.quarantine_list.winfo_children():
+            widget.destroy()
+
+        # Path to log
+        log_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs", "quarantine.json")
+        
+        if not os.path.exists(log_path):
+            ctk.CTkLabel(self.quarantine_list, text="No quarantined items found.").pack(pady=20)
+            return
+
+        try:
+            with open(log_path, 'r') as f:
+                logs = json.load(f)
+                
+            # Filter: Only show active "Quarantined" items
+            active_logs = [e for e in logs if e.get('status') == "Quarantined"]
+
+            if not active_logs:
+                ctk.CTkLabel(self.quarantine_list, text="Vault is empty (No active threats).").pack(pady=20)
+                return
+
+            # Display entries (Newest first)
+            for entry in reversed(active_logs):
+                self.create_quarantine_item(entry)
+                
+        except Exception as e:
+            ctk.CTkLabel(self.quarantine_list, text=f"Error loading vault: {e}").pack(pady=20)
+
+    def create_quarantine_item(self, entry):
+        item = ctk.CTkFrame(self.quarantine_list, fg_color="#333", corner_radius=10)
+        item.pack(fill="x", pady=5, padx=5)
+        
+        # Left: Icon/Type
+        type_lbl = ctk.CTkLabel(item, text="☣", font=ctk.CTkFont(size=24))
+        type_lbl.pack(side="left", padx=15, pady=10)
+        
+        # Middle: Details
+        details = ctk.CTkFrame(item, fg_color="transparent")
+        details.pack(side="left", fill="both", expand=True, padx=10)
+        
+        orig_path = entry.get("original_path", "Unknown")
+        fname = os.path.basename(orig_path)
+        timestamp = entry.get("timestamp", "").replace("T", " ")[:19]
+        threat = entry.get("threat_type", "Unknown Threat")
+        
+        ctk.CTkLabel(details, text=fname, font=ctk.CTkFont(size=14, weight="bold"), anchor="w").pack(fill="x")
+        ctk.CTkLabel(details, text=f"{threat} | {timestamp}", font=ctk.CTkFont(size=12), text_color="#aaa", anchor="w").pack(fill="x")
+        
+        # Right: Action Buttons
+        actions_frame = ctk.CTkFrame(item, fg_color="transparent")
+        actions_frame.pack(side="right", padx=10)
+        
+        status = entry.get("status", "Quarantined")
+        
+        if status == "Quarantined":
+            ctk.CTkButton(actions_frame, text="Unlock", fg_color="green", width=60, 
+                          command=lambda e=entry: self.on_restore(e)).pack(side="left", padx=5)
+            
+            ctk.CTkButton(actions_frame, text="Delete", fg_color="darkred", width=60, 
+                          command=lambda e=entry: self.on_delete(e)).pack(side="left", padx=5)
+        else:
+            # Just show status if already handled (Restored/Deleted)
+            ctk.CTkLabel(actions_frame, text=status.upper(), text_color="#888", font=ctk.CTkFont(weight="bold")).pack(side="right", padx=10)
+
+    def on_restore(self, entry):
+        path = entry.get("original_path")
+        if path:
+            msg = restore_file(path)
+            print(msg) # For debug
+            # Refresh UI
+            self.after(200, self.load_quarantine_list)
+
+    def on_delete(self, entry):
+        path = entry.get("original_path")
+        if path:
+            msg = delete_quarantined_file(path)
+            print(msg)
+            # Refresh UI
+            self.after(200, self.load_quarantine_list)
 
     # --- Page: Settings ---
     def setup_settings(self):
