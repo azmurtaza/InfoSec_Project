@@ -48,23 +48,51 @@ class MalwareScanner:
         # Convert to DataFrame (Single row)
         df = pd.DataFrame([input_data])
         
-        # 3. Predict (The Brain)
-        prediction = self.model.predict(df)[0] # 0 = Benign, 1 = Malware
-        probability = self.model.predict_proba(df)[0][1] * 100 # Confidence score
+        # 3. Scale Data (CRITICAL FIX)
+        # We must scale the data exactly like we did during training!
+        try:
+            scaler_path = os.path.join(self.script_dir, '..', 'models', 'scaler.pkl')
+            scaler = joblib.load(scaler_path)
+            X_scaled = scaler.transform(df)
+        except Exception as e:
+            print(f"[!] Warning: Could not load scaler ({e}). Predictions might be inaccurate.")
+            X_scaled = df
 
-        # 4. Result
+        # 4. Predict (The Brain)
+        prediction = self.model.predict(X_scaled)[0] # 0 = Benign, 1 = Malware
+        
+        try:
+            confidence = self.model.predict_proba(X_scaled)[0][1] * 100 
+        except:
+            confidence = 100.0 if prediction == 1 else 0.0
+
+        # 5. Result
+        result = {
+            "status": "malware" if prediction == 1 else "benign",
+            "confidence": confidence,
+            "file_path": file_path,
+            "file_name": os.path.basename(file_path), 
+            "message": ""
+        }
+        
         if prediction == 1:
-            return f"MALWARE DETECTED! (Confidence: {probability:.2f}%)"
+            result["message"] = f"MALWARE DETECTED! (Confidence: {confidence:.2f}%)"
+            result["recommendation"] = "Quarantine" if confidence > 90 else "Delete"
         else:
-            return f"Safe File. (Confidence: {100-probability:.2f}%)"
+            final_conf = 100 - confidence
+            result["message"] = f"Safe File. (Confidence: {final_conf:.2f}%)"
+            result["recommendation"] = "None"
+            
+        return result
 
 # --- TEST AREA (Runs only if you run this file directly) ---
 if __name__ == "__main__":
     scanner = MalwareScanner()
     
-    # Test on a safe Windows system file
-    # Note: If you are on Linux/Mac, this path won't work. Change it to a dummy exe.
+    # Test on a safe Windows system file or dummy
     test_file = r"C:\Windows\System32\calc.exe"
+    if not os.path.exists(test_file):
+         test_file = "src/scanner_engine.py" # fallback
     
     print("\n--- TEST SCAN ---")
     result = scanner.scan_file(test_file)

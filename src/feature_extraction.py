@@ -1,81 +1,143 @@
+
 import pefile
 import os
+import math
+import mmap
 import numpy as np
+from collections import Counter
+
+def calculate_entropy(data):
+    if not data:
+        return 0.0
+    occurences = Counter(data)
+    d_len = len(data)
+    entropy = -sum((count / d_len) * math.log2(count / d_len) for count in occurences.values())
+    return entropy
 
 def extract_pe_features(file_path):
+    features = {}
     try:
         pe = pefile.PE(file_path)
-        data = {}
+    except Exception as e:
+        print(f"Error parsing PE {file_path}: {e}")
+        return None
 
-        # --- 1. DOS HEADER ---
-        data['e_magic'] = pe.DOS_HEADER.e_magic
-        data['e_cblp'] = pe.DOS_HEADER.e_cblp
-        data['e_cp'] = pe.DOS_HEADER.e_cp
-        data['e_crlc'] = pe.DOS_HEADER.e_crlc
-        data['e_cparhdr'] = pe.DOS_HEADER.e_cparhdr
-        data['e_minalloc'] = pe.DOS_HEADER.e_minalloc
-        data['e_maxalloc'] = pe.DOS_HEADER.e_maxalloc
-        data['e_ss'] = pe.DOS_HEADER.e_ss
-        data['e_sp'] = pe.DOS_HEADER.e_sp
-        data['e_csum'] = pe.DOS_HEADER.e_csum
-        data['e_ip'] = pe.DOS_HEADER.e_ip
-        data['e_cs'] = pe.DOS_HEADER.e_cs
-        data['e_lfarlc'] = pe.DOS_HEADER.e_lfarlc
-        data['e_ovno'] = pe.DOS_HEADER.e_ovno
-        data['e_res'] = pe.DOS_HEADER.e_res[0] if len(pe.DOS_HEADER.e_res) > 0 else 0
-        data['e_oemid'] = pe.DOS_HEADER.e_oemid
-        data['e_oeminfo'] = pe.DOS_HEADER.e_oeminfo
-        data['e_res2'] = pe.DOS_HEADER.e_res2[0] if len(pe.DOS_HEADER.e_res2) > 0 else 0
-        data['e_lfanew'] = pe.DOS_HEADER.e_lfanew
-
-        # --- 2. FILE HEADER ---
-        data['Machine'] = pe.FILE_HEADER.Machine
-        data['NumberOfSections'] = pe.FILE_HEADER.NumberOfSections
-        data['CreationYear'] = pe.FILE_HEADER.TimeDateStamp # We will treat Timestamp as year proxy
-        data['PointerToSymbolTable'] = pe.FILE_HEADER.PointerToSymbolTable
-        data['NumberOfSymbols'] = pe.FILE_HEADER.NumberOfSymbols
-        data['SizeOfOptionalHeader'] = pe.FILE_HEADER.SizeOfOptionalHeader
-        data['Characteristics'] = pe.FILE_HEADER.Characteristics
-
-        # --- 3. OPTIONAL HEADER ---
-        data['Magic'] = pe.OPTIONAL_HEADER.Magic
-        data['MajorLinkerVersion'] = pe.OPTIONAL_HEADER.MajorLinkerVersion
-        data['MinorLinkerVersion'] = pe.OPTIONAL_HEADER.MinorLinkerVersion
-        data['SizeOfCode'] = pe.OPTIONAL_HEADER.SizeOfCode
-        data['SizeOfInitializedData'] = pe.OPTIONAL_HEADER.SizeOfInitializedData
-        data['SizeOfUninitializedData'] = pe.OPTIONAL_HEADER.SizeOfUninitializedData
-        data['AddressOfEntryPoint'] = pe.OPTIONAL_HEADER.AddressOfEntryPoint
-        data['BaseOfCode'] = pe.OPTIONAL_HEADER.BaseOfCode
+    try:
+        # --- DOS HEADER ---
+        features['e_cblp'] = pe.DOS_HEADER.e_cblp
+        features['e_cp'] = pe.DOS_HEADER.e_cp
+        features['e_cparhdr'] = pe.DOS_HEADER.e_cparhdr
+        features['e_maxalloc'] = pe.DOS_HEADER.e_maxalloc
+        features['e_sp'] = pe.DOS_HEADER.e_sp
+        features['e_lfanew'] = pe.DOS_HEADER.e_lfanew
         
-        # Handle BaseOfData (Not present in 64-bit PE32+ usually, but dataset might have it)
+        # --- FILE HEADER ---
+        features['NumberOfSections'] = pe.FILE_HEADER.NumberOfSections
+        features['CreationYear'] = pe.FILE_HEADER.TimeDateStamp 
+        
+        # FH_char0 to FH_char14
+        chars = pe.FILE_HEADER.Characteristics
+        for i in range(15):
+            features[f'FH_char{i}'] = (chars >> i) & 1
+
+        # --- OPTIONAL HEADER ---
+        opt = pe.OPTIONAL_HEADER
+        features['MajorLinkerVersion'] = opt.MajorLinkerVersion
+        features['MinorLinkerVersion'] = opt.MinorLinkerVersion
+        features['SizeOfCode'] = opt.SizeOfCode
+        features['SizeOfInitializedData'] = opt.SizeOfInitializedData
+        features['SizeOfUninitializedData'] = opt.SizeOfUninitializedData
+        features['AddressOfEntryPoint'] = opt.AddressOfEntryPoint
+        features['BaseOfCode'] = opt.BaseOfCode
+        
+        # BaseOfData handling (only in 32-bit PEs)
+        features['BaseOfData'] = getattr(opt, 'BaseOfData', 0)
+            
+        features['ImageBase'] = opt.ImageBase
+        features['SectionAlignment'] = opt.SectionAlignment
+        features['FileAlignment'] = opt.FileAlignment
+        features['MajorOperatingSystemVersion'] = opt.MajorOperatingSystemVersion
+        features['MinorOperatingSystemVersion'] = opt.MinorOperatingSystemVersion
+        features['MajorImageVersion'] = opt.MajorImageVersion
+        features['MinorImageVersion'] = opt.MinorImageVersion
+        features['MajorSubsystemVersion'] = opt.MajorSubsystemVersion
+        features['MinorSubsystemVersion'] = opt.MinorSubsystemVersion
+        features['SizeOfImage'] = opt.SizeOfImage
+        features['SizeOfHeaders'] = opt.SizeOfHeaders
+        features['CheckSum'] = opt.CheckSum
+        features['Subsystem'] = opt.Subsystem
+        
+        # DLL Characteristics (0-10)
+        dll_chars = opt.DllCharacteristics
+        for i in range(11):
+            features[f'OH_DLLchar{i}'] = (dll_chars >> i) & 1
+
+        features['SizeOfStackReserve'] = opt.SizeOfStackReserve
+        features['SizeOfStackCommit'] = opt.SizeOfStackCommit
+        features['SizeOfHeapReserve'] = opt.SizeOfHeapReserve
+        features['SizeOfHeapCommit'] = opt.SizeOfHeapCommit
+        features['LoaderFlags'] = opt.LoaderFlags
+
+        # --- DERIVED FEATURES ---
+        
+        # Sections Analysis
+        sus_sections = 0
+        non_sus_sections = 0
+        e_text_entropy = 0.0
+        e_data_entropy = 0.0
+        
+        # Standard section characteristics usually:
+        # IMAGE_SCN_MEM_WRITE = 0x80000000
+        # IMAGE_SCN_MEM_EXECUTE = 0x20000000
+        
+        for section in pe.sections:
+            props = section.Characteristics
+            is_write = (props & 0x80000000)
+            is_exec = (props & 0x20000000)
+            
+            # Identify suspicious sections (Write + Execute)
+            if is_write and is_exec:
+                sus_sections += 1
+            else:
+                non_sus_sections += 1
+            
+            # Entropy for .text and .data
+            name = section.Name.decode('utf-8', errors='ignore').strip('\x00')
+            if name.startswith('.text'):
+                e_text_entropy = calculate_entropy(section.get_data())
+            elif name.startswith('.data'):
+                e_data_entropy = calculate_entropy(section.get_data())
+
+        features['sus_sections'] = sus_sections
+        features['non_sus_sections'] = non_sus_sections
+        
+        # Entropy
+        features['E_text'] = e_text_entropy
+        features['E_data'] = e_data_entropy
+        
+        # File level features
         try:
-            data['BaseOfData'] = pe.OPTIONAL_HEADER.BaseOfData
-        except AttributeError:
-            data['BaseOfData'] = 0
+            with open(file_path, 'rb') as f:
+                data = f.read()
+                features['filesize'] = len(data)
+                features['E_file'] = calculate_entropy(data)
+        except:
+            features['filesize'] = 0
+            features['E_file'] = 0
 
-        data['ImageBase'] = pe.OPTIONAL_HEADER.ImageBase
-        data['SectionAlignment'] = pe.OPTIONAL_HEADER.SectionAlignment
-        data['FileAlignment'] = pe.OPTIONAL_HEADER.FileAlignment
-        data['MajorOperatingSystemVersion'] = pe.OPTIONAL_HEADER.MajorOperatingSystemVersion
-        data['MinorOperatingSystemVersion'] = pe.OPTIONAL_HEADER.MinorOperatingSystemVersion
-        data['MajorImageVersion'] = pe.OPTIONAL_HEADER.MajorImageVersion
-        data['MinorImageVersion'] = pe.OPTIONAL_HEADER.MinorImageVersion
-        data['MajorSubsystemVersion'] = pe.OPTIONAL_HEADER.MajorSubsystemVersion
-        data['MinorSubsystemVersion'] = pe.OPTIONAL_HEADER.MinorSubsystemVersion
-        data['SizeOfImage'] = pe.OPTIONAL_HEADER.SizeOfImage
-        data['SizeOfHeaders'] = pe.OPTIONAL_HEADER.SizeOfHeaders
-        data['CheckSum'] = pe.OPTIONAL_HEADER.CheckSum
-        data['Subsystem'] = pe.OPTIONAL_HEADER.Subsystem
-        data['DllCharacteristics'] = pe.OPTIONAL_HEADER.DllCharacteristics
-        data['SizeOfStackReserve'] = pe.OPTIONAL_HEADER.SizeOfStackReserve
-        data['SizeOfStackCommit'] = pe.OPTIONAL_HEADER.SizeOfStackCommit
-        data['SizeOfHeapReserve'] = pe.OPTIONAL_HEADER.SizeOfHeapReserve
-        data['SizeOfHeapCommit'] = pe.OPTIONAL_HEADER.SizeOfHeapCommit
-        data['LoaderFlags'] = pe.OPTIONAL_HEADER.LoaderFlags
-        data['NumberOfRvaAndSizes'] = pe.OPTIONAL_HEADER.NumberOfRvaAndSizes
-
-        return data
+        # Packer - Placeholder (Simple heuristic or 0)
+        # For strict sync with ClaMP dataset which implies existing label, 
+        # we default to 0 (False) to avoid mismatch, as accurate packer detection needs signature DB.
+        features['packer'] = 0 
+            
+        return features
 
     except Exception as e:
-        print(f"Error extracting features from {file_path}: {e}")
+        print(f"Error extracting features: {e}")
         return None
+
+if __name__ == "__main__":
+    # Test on itself or a dummy
+    import json
+    f = extract_pe_features("src/check_data.py") # Will fail PE parse obviously, but tests logic
+    print("Test run complete (expected error on non-PE)")
