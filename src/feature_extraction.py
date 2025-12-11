@@ -130,6 +130,50 @@ def extract_pe_features(file_path):
         # we default to 0 (False) to avoid mismatch, as accurate packer detection needs signature DB.
         features['packer'] = 0 
             
+        # --- 4. Extra Heuristic Features (User Requested) ---
+        # a. IAT Count (Import Address Table) - Heuristic for packers (low imports)
+        try:
+            pe.parse_data_directories()
+            if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+                features['IAT_Count'] = len(pe.DIRECTORY_ENTRY_IMPORT)
+            else:
+                features['IAT_Count'] = 0
+        except:
+            features['IAT_Count'] = 0
+
+        # b. Resource Entropy - Heuristic for hidden payloads
+        features['Resource_Entropy'] = 0
+        try:
+            if hasattr(pe, 'DIRECTORY_ENTRY_RESOURCE'):
+                for resource_type in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+                    if hasattr(resource_type, 'directory'):
+                        for resource_id in resource_type.directory.entries:
+                            if hasattr(resource_id, 'directory'):
+                                for resource_lang in resource_id.directory.entries:
+                                    data_rva = resource_lang.data.struct.OffsetToData
+                                    size = resource_lang.data.struct.Size
+                                    data = pe.get_memory_mapped_image()[data_rva:data_rva+size]
+                                    features['Resource_Entropy'] = max(features['Resource_Entropy'], calculate_entropy(data))
+        except Exception as e:
+            pass # Many files don't have resources
+
+        # c. Suspicious String Analysis
+        suspicious_keywords = [b"cmd.exe", b"powershell", b"urlmon", b"http", b"download", b"temp", b"socket"]
+        features['Suspicious_Strings'] = 0
+        try:
+            # Simple scan of the raw file content (mapped)
+            try:
+                raw_data = pe.get_memory_mapped_image()
+            except:
+                with open(file_path, 'rb') as f:
+                    raw_data = f.read()
+
+            for keyword in suspicious_keywords:
+                if keyword in raw_data.lower():
+                    features['Suspicious_Strings'] += 1
+        except:
+            pass
+
         return features
 
     except Exception as e:

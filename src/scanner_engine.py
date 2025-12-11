@@ -113,16 +113,27 @@ class MalwareScanner:
         e_text = features.get('E_text', 0)
         num_sections = features.get('NumberOfSections', 0)
         
+        # New Heuristic Features
+        suspicious_strings = features.get('Suspicious_Strings', 0)
+        resource_entropy = features.get('Resource_Entropy', 0)
+        iat_count = features.get('IAT_Count', 0)
+        
         threat_type = "Generic Malware"
         pass_protocol = "Isolate file and move to Quarantine"
 
-        # Heuristic Rules requested by user
-        if e_text > 7.2:
+        # Prioritize Logic
+        if e_text > 7.2 or resource_entropy > 7.5:
             threat_type = "Ransomware/Encrypted"
             pass_protocol = "Immediate Quarantine Required (High Entropy)"
+        elif suspicious_strings > 2:
+            threat_type = "Trojan/Botnet (Suspicious Strings)"
+            pass_protocol = "Block Network Access & Quarantine"
         elif num_sections < 4 and filesize > 500 * 1024: 
-            threat_type = "Worm/Dropper" # Small network characteristics often implied by small section count + logic, here simplified to Dropper rules
+            threat_type = "Worm/Dropper"
             pass_protocol = "Quarantine and Inspect Payload"
+        elif iat_count < 10 and filesize > 100 * 1024:
+             threat_type = "Packed Malware (Low Imports)"
+             pass_protocol = "Unpack in Sandbox"
         elif sus_sections > 0:
             threat_type = "Trojan/Packer"
             

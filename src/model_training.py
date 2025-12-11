@@ -4,7 +4,7 @@ import numpy as np
 import joblib
 import json
 import os
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import StandardScaler, LabelEncoder
@@ -72,10 +72,30 @@ def train_model():
     # --- 5. Train/Test Split ---
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-    # --- 6. Train Model ---
-    print("[*] Training Random Forest (balanced weights)...")
-    clf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
-    clf.fit(X_train, y_train)
+    # --- 6. Train Model with Tuning ---
+    print("[*] Starting Hyperparameter Tuning (GridSearchCV)...")
+    
+    # Define simple grid (expand for more tuning)
+    param_grid = {
+        'n_estimators': [100, 200],
+        'max_depth': [None, 20],
+        'min_samples_split': [2, 5],
+        'class_weight': ['balanced']
+    }
+    
+    base_clf = RandomForestClassifier(random_state=42)
+    
+    # Grid Search (3-fold CV is enough for speed/robustness balance here)
+    grid_search = GridSearchCV(estimator=base_clf, param_grid=param_grid, 
+                               cv=3, n_jobs=-1, verbose=1, scoring='accuracy')
+    
+    grid_search.fit(X_train, y_train)
+    
+    print("\n" + "="*30)
+    print(f" BEST PARAMS: {grid_search.best_params_}")
+    print("="*30)
+    
+    clf = grid_search.best_estimator_
 
     # --- 7. Evaluation ---
     y_pred = clf.predict(X_test)
@@ -89,8 +109,20 @@ def train_model():
     print("Confusion Matrix:")
     print(confusion_matrix(y_test, y_pred))
 
+    # --- Feature Importance ---
+    print("\n[*] Feature Importance Analysis:")
+    importances = clf.feature_importances_
+    feature_names = X.columns
+    
+    # Create sorted list
+    feature_imp = sorted(zip(importances, feature_names), reverse=True)
+    
+    print("Top 20 Most Influential Features:")
+    for score, name in feature_imp[:20]:
+        print(f"   {name}: {score:.4f}")
+
     # --- 8. Save Artifacts ---
-    print(f"[*] Saving model artifacts to {models_dir}...")
+    print(f"\n[*] Saving model artifacts to {models_dir}...")
     joblib.dump(clf, model_path)
     joblib.dump(scaler, scaler_path)
     
