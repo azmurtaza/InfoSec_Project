@@ -138,7 +138,7 @@ class MalwareScanner:
             threat_type = "Trojan/Packer"
             
         # Severity Logic
-        severity = "Critical" if confidence > 90 else "High"
+        severity = "Critical" if confidence > 95 else "High"
         
         return {
             "Type": threat_type,

@@ -4,7 +4,7 @@ import pandas as pd
 from feature_extraction import extract_pe_features
 
 INPUT_FOLDER = "data/raw_files"
-OUTPUT_CSV = "data/new_dataset.csv"
+OUTPUT_CSV = "data/dataset.csv"
 
 def build_dataset():
     rows = []

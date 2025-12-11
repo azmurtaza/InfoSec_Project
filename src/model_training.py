@@ -5,7 +5,7 @@ import joblib
 import json
 import os
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 
@@ -76,14 +76,15 @@ def train_model():
     print("[*] Starting Hyperparameter Tuning (GridSearchCV)...")
     
     # Define simple grid (expand for more tuning)
+    # Define simple grid for Gradient Boosting
     param_grid = {
-        'n_estimators': [100, 200],
-        'max_depth': [None, 20],
-        'min_samples_split': [2, 5],
-        'class_weight': ['balanced']
+        'n_estimators': [100, 200, 300],
+        'learning_rate': [0.05, 0.1, 0.2],
+        'max_depth': [3, 5, 7],
+        'min_samples_split': [2, 5]
     }
     
-    base_clf = RandomForestClassifier(random_state=42)
+    base_clf = GradientBoostingClassifier(random_state=42)
     
     # Grid Search (3-fold CV is enough for speed/robustness balance here)
     grid_search = GridSearchCV(estimator=base_clf, param_grid=param_grid, 
