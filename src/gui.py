@@ -5,6 +5,7 @@ import threading
 import time
 from tkinter import filedialog
 from scanner_engine import MalwareScanner
+from quarantine import quarantine_file
 
 # --- Configuration ---
 ctk.set_appearance_mode("Dark")
@@ -23,6 +24,8 @@ class AntivirusApp(ctk.CTk):
         # Initialize Logic
         self.scanner = MalwareScanner()
         self.scan_thread = None
+        self.current_threat_path = None
+        self.current_threat_type = "Generic"
 
         # --- Sidebar ---
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
@@ -120,17 +123,30 @@ class AntivirusApp(ctk.CTk):
         
         self.lbl_res_conf = ctk.CTkLabel(self.result_card, text="Confidence: ...")
         self.lbl_res_conf.pack(pady=5)
+
+        # New Labels for Type and Protocol
+        self.lbl_res_type = ctk.CTkLabel(self.result_card, text="Type: ...", font=ctk.CTkFont(size=16, weight="bold"), text_color="#ffff00")
+        self.lbl_res_type.pack(pady=5)
+        
+        self.lbl_res_protocol = ctk.CTkLabel(self.result_card, text="Protocol: ...")
+        self.lbl_res_protocol.pack(pady=5)
         
         self.lbl_res_action = ctk.CTkLabel(self.result_card, text="Suggested Action: ...")
         self.lbl_res_action.pack(pady=10)
+        
+        # Action Buttons specific to result
+        self.btn_action_quarantine = ctk.CTkButton(self.result_card, text="MOVE TO QUARANTINE", fg_color="red", hover_color="darkred", command=self.action_quarantine)
+        self.btn_action_quarantine.pack(pady=10)
+        self.btn_action_quarantine.pack_forget() # Hide initially
 
-    # --- Page: Quarantine (Placeholder) ---
+    # --- Page: Quarantine ---
     def setup_quarantine(self):
         frame = self.frames["quarantine"]
         ctk.CTkLabel(frame, text="Quarantine Vault", font=ctk.CTkFont(size=24)).pack(pady=20)
-        ctk.CTkLabel(frame, text="No items in quarantine.").pack(pady=50)
+        ctk.CTkLabel(frame, text="Secure Storage for Locked Threats").pack(pady=10)
+        # In a real app, we would list files here from logs/quarantine.json
 
-    # --- Page: Settings (Placeholder) ---
+    # --- Page: Settings ---
     def setup_settings(self):
         frame = self.frames["settings"]
         ctk.CTkLabel(frame, text="Settings", font=ctk.CTkFont(size=24)).pack(pady=20)
@@ -170,41 +186,51 @@ class AntivirusApp(ctk.CTk):
 
     def run_scan_logic(self, file_path):
         # Actual Heavy Lifting
-        # Simulate a slight delay for "Thinking" effect if scan is too fast
-        time.sleep(1.0) 
-        
+        time.sleep(1.0) # UX Delay
         result = self.scanner.scan_file(file_path)
         
-        # Schedule UI update on main thread (using .after logic implicitly or explicitly)
-        # Tkinter is not thread safe, but simple event scheduling usually works.
-        # Better: call a method that updates UI.
+        # Schedule UI update
         self.after(0, lambda: self.display_result(result))
 
     def display_result(self, result):
-        # Update Dashboard Status
+        # Verify structure
         if isinstance(result, dict):
             is_malware = result.get("status") == "malware"
             confidence = result.get("confidence", 0)
-            msg = result.get("message", "")
-            rec = result.get("recommendation", "")
+            threat_type = result.get("Type", "Malware")
+            protocol = result.get("Protocol", "None")
             fname = result.get("file_name", "Unknown")
+            
+            self.current_threat_path = result.get("file_path")
+            self.current_threat_type = threat_type
         else:
-            # Fallback for error strings
+            # Fallback
             is_malware = False
-            msg = str(result)
             confidence = 0
-            rec = "Check Error"
             fname = "N/A"
+            protocol = str(result)
+            self.current_threat_path = None
 
         self.result_card.pack(pady=20, fill="x", padx=50)
         
         if is_malware:
             # Threat Card Styling
             self.result_card.configure(border_color="#ff0000")
-            self.lbl_res_title.configure(text="THREAT DETECTED", text_color="#ff0000")
+            self.lbl_res_title.configure(text=f"THREAT DETECTED", text_color="#ff0000")
             self.lbl_res_file.configure(text=f"File: {fname}")
             self.lbl_res_conf.configure(text=f"Confidence: {confidence:.2f}%")
-            self.lbl_res_action.configure(text=f"Action: {rec}", text_color="#ffa500") # Orange
+            
+            # New Labels
+            self.lbl_res_type.configure(text=f"Detected Type: {threat_type.upper()}")
+            self.lbl_res_type.pack(pady=5) # Ensure visible
+            
+            self.lbl_res_protocol.configure(text=f"Protocol: {protocol}")
+            self.lbl_res_protocol.pack(pady=5) # Ensure visible
+
+            self.lbl_res_action.configure(text=f"Action: Quarantine Recommended", text_color="#ffa500") # Orange
+            
+            # Show Quarantine Button
+            self.btn_action_quarantine.pack(pady=10)
             
             # Dashboard Indicator Red
             self.status_canvas.itemconfig(self.status_circle, fill="#ff0000")
@@ -216,12 +242,30 @@ class AntivirusApp(ctk.CTk):
             self.lbl_res_title.configure(text="Clean File", text_color="#00ff00")
             self.lbl_res_file.configure(text=f"File: {fname}")
             self.lbl_res_conf.configure(text=f"Confidence: {confidence:.2f}% (Benign)")
-            self.lbl_res_action.configure(text="Action: None required.", text_color="#ddd")
+            
+            # Hide Threat details
+            self.lbl_res_type.pack_forget()
+            self.lbl_res_protocol.pack_forget()
+            
+            self.lbl_res_action.configure(text="System is safe.", text_color="#ddd")
+            
+            # Hide Quarantine Button
+            self.btn_action_quarantine.pack_forget()
 
             # Dashboard Indicator Green
             self.status_canvas.itemconfig(self.status_circle, fill="#00ff00")
             self.lbl_status_text.configure(text="SYSTEM SECURE", text_color="#00ff00")
 
+    def action_quarantine(self):
+        if self.current_threat_path:
+            res = quarantine_file(self.current_threat_path, self.current_threat_type)
+            # Update UI to show success
+            self.lbl_res_action.configure(text=str(res), text_color="#00ff00")
+            self.btn_action_quarantine.pack_forget()
+            
+            # Set status to yellow/handled
+            self.status_canvas.itemconfig(self.status_circle, fill="#ffff00")
+            self.lbl_status_text.configure(text="THREAT QUARANTINED", text_color="#ffff00")
 
 if __name__ == "__main__":
     app = AntivirusApp()
