@@ -66,9 +66,12 @@ class MalwareScanner:
         prediction = self.model.predict(X_scaled)[0] # 0 = Benign, 1 = Malware
         
         try:
-            confidence = self.model.predict_proba(X_scaled)[0][1] * 100 
+            # Fix: Use the maximum probability (confidence in the specific prediction)
+            # transform is already applied above
+            probs = self.model.predict_proba(X_scaled)[0]
+            confidence = max(probs) * 100
         except:
-            confidence = 100.0 if prediction == 1 else 0.0
+            confidence = 100.0 # Fallback
 
         # 5. Result Construction
         threat_details = self.get_threat_details(input_data, prediction, confidence)
@@ -132,20 +135,7 @@ class MalwareScanner:
             "Protocol": pass_protocol
         }
 
-    def determine_malware_type(self, data):
-        # Rule 1: Ransomware Check (High Entropy)
-        if data.get('E_text', 0) > 7.2:
-            return "Ransomware (Encrypted Sections)"
-        
-        # Rule 2: Trojan Check (Suspicious Sections)
-        if data.get('sus_sections', 0) > 1:
-            return "Trojan / Dropper (Hidden Payload)"
-        
-        # Rule 3: Worm Check (Small file, high impact)
-        if data.get('filesize', 0) < 100000 and data.get('Characteristics', 0) & 0x2000:
-            return "Worm / Network Infector"
-            
-        return "Generic Malware"
+
 
 # --- TEST AREA (Runs only if you run this file directly) ---
 if __name__ == "__main__":
