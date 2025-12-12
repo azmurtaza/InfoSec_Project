@@ -1,0 +1,71 @@
+import os
+import time
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+from scanner_engine import MalwareScanner
+
+class RealTimeHandler(FileSystemEventHandler):
+    def __init__(self, callback):
+        self.scanner = MalwareScanner()
+        self.callback = callback
+
+    def on_created(self, event):
+        if not event.is_directory:
+            self.scan(event.src_path)
+
+    def on_modified(self, event):
+        if not event.is_directory:
+            self.scan(event.src_path)
+
+    def scan(self, file_path):
+        # Small delay to ensure file write is complete
+        time.sleep(1.0)
+        
+        # We only care about executable-like content or specific extensions
+        # to avoid scanning every temp file.
+        valid_extensions = ('.exe', '.dll', '.bat', '.ps1', '.vbs')
+        if not file_path.lower().endswith(valid_extensions):
+             # For demo purposes, we might want to scan everything, but let's be realistic
+             # If the user renamed a file to .txt it might bypass, but for a prototype this is fine.
+             # Actually, let's scan everything that isn't obviously a log or tmp
+             pass
+
+        print(f"[RealTime] Scanning modified/created file: {file_path}")
+        try:
+            result = self.scanner.scan_file(file_path)
+            
+            # Check if it is malware
+            if isinstance(result, dict) and result.get("status") == "malware":
+                print(f"[RealTime] THREAT DETECTED in {file_path}!")
+                # Trigger callback to UI
+                if self.callback:
+                    self.callback(result)
+        except Exception as e:
+            print(f"[RealTime] Error scanning {file_path}: {e}")
+
+class RealTimeProtector:
+    def __init__(self, threat_callback):
+        self.observer = Observer()
+        self.handler = RealTimeHandler(threat_callback)
+        # Default to Downloads for safety/demo
+        self.watch_path = os.path.join(os.path.expanduser("~"), "Downloads")
+        self.is_running = False
+
+    def start(self):
+        if not self.is_running:
+            if not os.path.exists(self.watch_path):
+                print(f"[RealTime] Watch path does not exist: {self.watch_path}")
+                return
+
+            self.observer = Observer() # Re-create observer on restart
+            self.observer.schedule(self.handler, self.watch_path, recursive=False)
+            self.observer.start()
+            self.is_running = True
+            print(f"[RealTime] Protection Started. Watching: {self.watch_path}")
+
+    def stop(self):
+        if self.is_running:
+            self.observer.stop()
+            self.observer.join()
+            self.is_running = False
+            print("[RealTime] Protection Stopped.")

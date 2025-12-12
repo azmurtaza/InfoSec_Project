@@ -7,6 +7,7 @@ import time
 from tkinter import filedialog
 from scanner_engine import MalwareScanner
 from quarantine import quarantine_file, delete_quarantined_file, restore_file, sync_quarantine_vault
+from realtime_protection import RealTimeProtector
 
 # --- Configuration ---
 ctk.set_appearance_mode("Dark")
@@ -27,6 +28,9 @@ class AntivirusApp(ctk.CTk):
         self.scan_thread = None
         self.current_threat_path = None
         self.current_threat_type = "Generic"
+        
+        # Real-time Protection
+        self.protector = RealTimeProtector(self.on_realtime_threat_detected)
 
         # --- Sidebar ---
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
@@ -45,9 +49,16 @@ class AntivirusApp(ctk.CTk):
 
         self.btn_quarantine = ctk.CTkButton(self.sidebar_frame, text="Quarantine", command=lambda: self.show_frame("quarantine"))
         self.btn_quarantine.grid(row=3, column=0, padx=20, pady=10)
+        
+        self.btn_realtime = ctk.CTkButton(self.sidebar_frame, text="Realtime", command=lambda: self.show_frame("realtime"))
+        self.btn_realtime.grid(row=4, column=0, padx=20, pady=10)
 
+        self.btn_quick = ctk.CTkButton(self.sidebar_frame, text="Quick Scan", command=lambda: self.show_frame("quick"))
+        self.btn_quick.grid(row=5, column=0, padx=20, pady=10)
+        
+        # Grid Fix: Settings was at row 6, which is fine, but let's be explicit
         self.btn_settings = ctk.CTkButton(self.sidebar_frame, text="Settings", command=lambda: self.show_frame("settings"))
-        self.btn_settings.grid(row=4, column=0, padx=20, pady=10)
+        self.btn_settings.grid(row=6, column=0, padx=20, pady=10)
 
         # --- Main Content Area ---
         self.main_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -55,7 +66,9 @@ class AntivirusApp(ctk.CTk):
 
         # Create Pages
         self.frames = {}
-        for page in ["dashboard", "scan", "quarantine", "settings"]:
+        # Create Pages
+        self.frames = {}
+        for page in ["dashboard", "scan", "quarantine", "settings", "realtime", "quick"]:
             self.frames[page] = ctk.CTkFrame(self.main_frame, fg_color="transparent")
             self.frames[page].grid(row=0, column=0, sticky="nsew")
         
@@ -64,6 +77,8 @@ class AntivirusApp(ctk.CTk):
         self.setup_scan()
         self.setup_quarantine()
         self.setup_settings()
+        self.setup_realtime()
+        self.setup_quick_scan()
 
         # Start on Dashboard
         self.show_frame("dashboard")
@@ -236,7 +251,11 @@ class AntivirusApp(ctk.CTk):
             msg = restore_file(path)
             print(msg) # For debug
             # Refresh UI
+            # Refresh UI
             self.after(200, self.load_quarantine_list)
+            # Sync Fix: Check if we need to clear the Scan page
+            if self.current_threat_path and path and os.path.normpath(path) == os.path.normpath(self.current_threat_path):
+                self.clear_scan_result()
 
     def on_delete(self, entry):
         path = entry.get("original_path")
@@ -244,14 +263,139 @@ class AntivirusApp(ctk.CTk):
             msg = delete_quarantined_file(path)
             print(msg)
             # Refresh UI
+            # Refresh UI
             self.after(200, self.load_quarantine_list)
+            # Sync Fix: Check if we need to clear the Scan page
+            if self.current_threat_path and path and os.path.normpath(path) == os.path.normpath(self.current_threat_path):
+                self.clear_scan_result()
+
+    def clear_scan_result(self):
+        # Reset Scan Page UI
+        self.result_card.pack_forget()
+        self.current_threat_path = None
+        self.btn_browse.configure(state="normal")
+        self.lbl_status_text.configure(text="SYSTEM SECURE", text_color="#00ff00")
+        self.status_canvas.itemconfig(self.status_circle, fill="#00ff00")
 
     # --- Page: Settings ---
     def setup_settings(self):
         frame = self.frames["settings"]
         ctk.CTkLabel(frame, text="Settings", font=ctk.CTkFont(size=24)).pack(pady=20)
-        ctk.CTkSwitch(frame, text="Real-time Protection").pack(pady=10)
-        ctk.CTkSwitch(frame, text="Cloud Analysis").pack(pady=10)
+        ctk.CTkLabel(frame, text="General Settings").pack(pady=10)
+        
+        self.sw_notify = ctk.CTkSwitch(frame, text="Notifications")
+        self.sw_notify.select() # Default On
+        self.sw_notify.pack(pady=10)
+        
+        self.sw_auto_q = ctk.CTkSwitch(frame, text="Auto-Quarantine High Threats")
+        self.sw_auto_q.pack(pady=10)
+        
+        ctk.CTkLabel(frame, text="Theme").pack(pady=(20, 5))
+        self.opt_theme = ctk.CTkOptionMenu(frame, values=["Dark", "Light"], command=self.change_theme)
+        self.opt_theme.set("Dark")
+        self.opt_theme.pack(pady=5)
+        
+    def change_theme(self, new_theme):
+        ctk.set_appearance_mode(new_theme)
+
+    # --- Page: Realtime ---
+    def setup_realtime(self):
+        frame = self.frames["realtime"]
+        ctk.CTkLabel(frame, text="Real-time Protection", font=ctk.CTkFont(size=24)).pack(pady=20)
+        
+        # Status Icon
+        self.rt_status_canvas = ctk.CTkCanvas(frame, width=150, height=150, bg="#2b2b2b", highlightthickness=0)
+        self.rt_status_canvas.pack(pady=20)
+        self.rt_status_circle = self.rt_status_canvas.create_oval(15, 15, 135, 135, fill="#555", outline="")
+        
+        self.lbl_rt_status = ctk.CTkLabel(frame, text="PROTECTION OFF", font=ctk.CTkFont(size=18, weight="bold"), text_color="#aaa")
+        self.lbl_rt_status.pack(pady=10)
+        
+        self.sw_realtime = ctk.CTkSwitch(frame, text="Enable Real-time Protection", command=self.toggle_realtime, font=ctk.CTkFont(size=16))
+        self.sw_realtime.pack(pady=20)
+        
+        ctk.CTkLabel(frame, text="Monitored Folder: Downloads", text_color="#888").pack(pady=5)
+
+    # --- Page: Quick Scan ---
+    def setup_quick_scan(self):
+        frame = self.frames["quick"]
+        ctk.CTkLabel(frame, text="Quick Scan", font=ctk.CTkFont(size=24)).pack(pady=20)
+        ctk.CTkLabel(frame, text="Scans Downloads, Desktop and Documents for threats.", text_color="#aaa").pack(pady=(0, 20))
+        
+        self.btn_start_quick = ctk.CTkButton(frame, text="Start Quick Scan", height=50, width=200, font=ctk.CTkFont(size=16), command=self.start_quick_scan)
+        self.btn_start_quick.pack(pady=20)
+        
+        self.quick_progress = ctk.CTkProgressBar(frame, width=400)
+        self.quick_progress.set(0)
+        self.quick_progress.pack(pady=20)
+        self.quick_progress.pack_forget()
+        
+        self.lbl_quick_status = ctk.CTkLabel(frame, text="Ready to scan.")
+        self.lbl_quick_status.pack(pady=10)
+        
+        # Results List
+        self.quick_results_frame = ctk.CTkScrollableFrame(frame, width=700, height=300, label_text="Threats Found")
+        self.quick_results_frame.pack(pady=10, fill="both", expand=True)
+
+    def start_quick_scan(self):
+        self.btn_start_quick.configure(state="disabled")
+        self.quick_progress.pack(pady=20)
+        self.quick_progress.start()
+        self.lbl_quick_status.configure(text="Scanning relevant folders...")
+        
+        # Clear previous results
+        for widget in self.quick_results_frame.winfo_children():
+            widget.destroy()
+            
+        threading.Thread(target=self.run_quick_scan_logic).start()
+
+    def run_quick_scan_logic(self):
+        user_home = os.path.expanduser("~")
+        targets = [
+            os.path.join(user_home, "Downloads"),
+            os.path.join(user_home, "Desktop"),
+            os.path.join(user_home, "Documents")
+        ]
+        
+        threats = []
+        
+        for target in targets:
+             # Basic progress update
+             self.after(0, lambda t=target: self.lbl_quick_status.configure(text=f"Scanning {os.path.basename(t)}..."))
+             
+             for result in self.scanner.scan_directory(target):
+                 threats.append(result)
+        
+        self.after(0, lambda: self.finish_quick_scan(threats))
+
+    def finish_quick_scan(self, threats):
+        self.quick_progress.stop()
+        self.quick_progress.pack_forget()
+        self.btn_start_quick.configure(state="normal")
+        
+        if not threats:
+            self.lbl_quick_status.configure(text="Scan Complete. No threats found!")
+            ctk.CTkLabel(self.quick_results_frame, text="No threats found. System is clean.", text_color="green").pack(pady=20)
+        else:
+            self.lbl_quick_status.configure(text=f"Scan Complete. {len(threats)} threats found!")
+            for threat in threats:
+                self.add_quick_result_item(threat)
+
+    def add_quick_result_item(self, threat):
+         item = ctk.CTkFrame(self.quick_results_frame)
+         item.pack(fill="x", pady=2)
+         ctk.CTkLabel(item, text=f"⚠️ {os.path.basename(threat['file_path'])}", text_color="red", anchor="w").pack(side="left", padx=10)
+         ctk.CTkLabel(item, text=threat.get('Type', 'Unknown'), anchor="w").pack(side="left", padx=10)
+         
+         # Quarantine button for this item
+         # Note: This is a simplified action, ideally we'd want to refresh the list after action
+         ctk.CTkButton(item, text="Quarantine", width=80, fg_color="red", 
+                       command=lambda p=threat['file_path'], t=threat.get('Type', 'Generic'): self.quick_quarantine(p, t, item)).pack(side="right", padx=5)
+
+    def quick_quarantine(self, path, threat_type, widget):
+        res = quarantine_file(path, threat_type)
+        print(res)
+        widget.destroy()
 
     # --- Logic ---
     def browse_file(self):
@@ -366,6 +510,40 @@ class AntivirusApp(ctk.CTk):
             # Set status to yellow/handled
             self.status_canvas.itemconfig(self.status_circle, fill="#ffff00")
             self.lbl_status_text.configure(text="THREAT QUARANTINED", text_color="#ffff00")
+            
+            # Sync Fix: Hide the card too or show success message?
+            # User asked: "Thread Detected" and "Move to Quarantine" button should also disappear
+            self.result_card.pack_forget()
+            self.current_threat_path = None
+
+    def toggle_realtime(self):
+        if self.sw_realtime.get() == 1:
+            self.protector.start()
+            self.lbl_rt_status.configure(text="PROTECTING", text_color="#00ff00")
+            self.rt_status_canvas.itemconfig(self.rt_status_circle, fill="#00ff00")
+        else:
+            self.protector.stop()
+            self.lbl_rt_status.configure(text="PROTECTION OFF", text_color="#aaa")
+            self.rt_status_canvas.itemconfig(self.rt_status_circle, fill="#555")
+
+    def on_realtime_threat_detected(self, result):
+        # Callback from background thread, must use after to be thread-safe
+        self.after(0, lambda: self._handle_realtime_alert(result))
+
+    def _handle_realtime_alert(self, result):
+        # Force switch to dashboard or show a popup
+        self.show_frame("dashboard")
+        
+        fname = result.get("file_name", "Unknown")
+        threat_type = result.get("Type", "Unknown")
+        
+        self.status_canvas.itemconfig(self.status_circle, fill="#ff0000")
+        self.lbl_status_text.configure(text=f"REAL-TIME THREAT: {fname}", text_color="#ff0000")
+        
+        # Also maybe pop up the scan result to show details?
+        # For now, let's just log it or maybe redirect to scan page with results
+        self.display_result(result)
+        self.show_frame("scan") # Show the details
 
 if __name__ == "__main__":
     app = AntivirusApp()

@@ -58,5 +58,47 @@
         "timestamp": "2025-12-12T00:17:00.904958",
         "threat_type": "Generic Malware",
         "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-12T10:21:40.275378",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/eicar.exe",
+        "timestamp": "2025-12-12T15:10:37.079670",
+        "threat_type": "Generic Malware",
+        "status": "Deleted"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/eicar.exe",
+        "timestamp": "2025-12-12T15:12:02.830179",
+        "threat_type": "Generic Malware",
+        "status": "Deleted"
+    },
+    {
+        "original_path": "C:\\Users\\husna\\Downloads\\test.exe",
+        "timestamp": "2025-12-12T15:14:46.774751",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:\\Users\\husna\\Downloads\\test.exe",
+        "timestamp": "2025-12-12T15:19:11.022620",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-12T15:30:47.330147",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:\\Users\\husna\\Downloads\\eicar.exe",
+        "timestamp": "2025-12-12T15:32:22.194058",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
     }
 ]
