@@ -100,5 +100,17 @@
         "timestamp": "2025-12-12T15:32:22.194058",
         "threat_type": "Generic Malware",
         "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-12T19:02:15.510168",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-12T19:03:12.393994",
+        "threat_type": "Generic Malware",
+        "status": "Restored"
     }
 ]
