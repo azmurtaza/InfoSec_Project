@@ -219,11 +219,23 @@ class MalwareScanner:
                 if pred_class == 1:
                     prediction = 1
                     confidence = min(99.0, calibrated_conf * 100)
-                    status = "malware" if confidence > 70 else "suspicious"
+                    # 3-tier system: malware (95%+), suspicious (70-94%), or flip to benign
+                    if confidence >= 95:
+                        status = "malware"
+                    elif confidence >= 70:
+                        status = "suspicious"
+                    else:
+                        # Low confidence malware -> treat as suspicious benign
+                        prediction = 0
+                        status = "suspicious"
                 else:
                     prediction = 0
                     confidence = min(99.0, calibrated_conf * 100)
-                    status = "benign"
+                    # Check if benign confidence is also low
+                    if confidence < 70:
+                        status = "suspicious"
+                    else:
+                        status = "benign"
                     
             elif pred_class == 0:  # Benign
                 raw_conf = benign_prob
@@ -241,22 +253,36 @@ class MalwareScanner:
                 
                 prediction = 0
                 confidence = min(99.0, calibrated_conf * 100)
-                status = "benign"
+                # Green (benign) only if 90%+, otherwise yellow (suspicious)
+                if confidence >= 90:
+                    status = "benign"
+                else:
+                    status = "suspicious"
                 
             else:  # Unknown (-1)
-                # Treat unknown as benign with boosted confidence
+                # Treat unknown as suspicious unless very confident
                 prediction = 0
                 base_conf = max(benign_prob, unknown_prob)
-                calibrated_conf = min(0.95, base_conf + 0.25)  # Boost by 25%
+                calibrated_conf = min(0.95, base_conf + 0.25)
                 confidence = calibrated_conf * 100
-                status = "benign"
+                # Only benign if 90%+, otherwise suspicious
+                if confidence >= 90:
+                    status = "benign"
+                else:
+                    status = "suspicious"
                 
         except Exception as e:
             print(f"[!] Prediction Error: {e}")
             return "Error: Prediction failed."
 
         # 5. Result Construction
-        gui_status = "benign" if status == "benign" else "malware"
+        # 3-tier system: benign (green), suspicious (yellow), malware (red)
+        if status == "malware":
+            gui_status = "malware"
+        elif status == "suspicious":
+            gui_status = "suspicious"
+        else:
+            gui_status = "benign"
         
         threat_details = self.get_threat_details(metadata, prediction, confidence, status)
         

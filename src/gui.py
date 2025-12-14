@@ -458,7 +458,9 @@ class AntivirusApp(ctk.CTk):
     def display_result(self, result):
         # Verify structure
         if isinstance(result, dict):
-            is_malware = result.get("status") == "malware"
+            status = result.get("status", "benign")
+            is_malware = status == "malware"
+            is_suspicious = status == "suspicious"
             confidence = result.get("confidence", 0)
             threat_type = result.get("Type", "Malware")
             protocol = result.get("Protocol", "None")
@@ -469,6 +471,7 @@ class AntivirusApp(ctk.CTk):
         else:
             # Fallback
             is_malware = False
+            is_suspicious = False
             confidence = 0
             fname = "N/A"
             protocol = str(result)
@@ -477,7 +480,7 @@ class AntivirusApp(ctk.CTk):
         self.result_card.pack(pady=20, fill="x", padx=50)
         
         if is_malware:
-            # Threat Card Styling
+            # Malware Card Styling (RED)
             self.result_card.configure(border_color="#ff0000")
             self.lbl_res_title.configure(text=f"THREAT DETECTED", text_color="#ff0000")
             self.lbl_res_file.configure(text=f"File: {fname}")
@@ -485,12 +488,12 @@ class AntivirusApp(ctk.CTk):
             
             # New Labels
             self.lbl_res_type.configure(text=f"Detected Type: {threat_type.upper()}")
-            self.lbl_res_type.pack(pady=5) # Ensure visible
+            self.lbl_res_type.pack(pady=5)
             
             self.lbl_res_protocol.configure(text=f"Protocol: {protocol}")
-            self.lbl_res_protocol.pack(pady=5) # Ensure visible
+            self.lbl_res_protocol.pack(pady=5)
 
-            self.lbl_res_action.configure(text=f"Action: Quarantine Recommended", text_color="#ffa500") # Orange
+            self.lbl_res_action.configure(text=f"Action: Quarantine Recommended", text_color="#ffa500")
             
             # Show Quarantine Button
             self.btn_action_quarantine.pack(pady=10)
@@ -499,8 +502,31 @@ class AntivirusApp(ctk.CTk):
             self.status_canvas.itemconfig(self.status_circle, fill="#ff0000")
             self.lbl_status_text.configure(text="THREAT FOUND", text_color="#ff0000")
             
+        elif is_suspicious:
+            # Suspicious Card Styling (YELLOW/ORANGE)
+            self.result_card.configure(border_color="#ffaa00")
+            self.lbl_res_title.configure(text="SUSPICIOUS FILE", text_color="#ffaa00")
+            self.lbl_res_file.configure(text=f"File: {fname}")
+            self.lbl_res_conf.configure(text=f"Confidence: {confidence:.2f}% (Medium)")
+            
+            # Show type info
+            self.lbl_res_type.configure(text=f"Status: Requires Review")
+            self.lbl_res_type.pack(pady=5)
+            
+            self.lbl_res_protocol.configure(text=f"Recommendation: Manual inspection advised")
+            self.lbl_res_protocol.pack(pady=5)
+
+            self.lbl_res_action.configure(text="Action: Review file manually or quarantine if unsure", text_color="#ffaa00")
+            
+            # Show Quarantine Button for suspicious files too
+            self.btn_action_quarantine.pack(pady=10)
+            
+            # Dashboard Indicator Yellow
+            self.status_canvas.itemconfig(self.status_circle, fill="#ffaa00")
+            self.lbl_status_text.configure(text="SUSPICIOUS FILE", text_color="#ffaa00")
+            
         else:
-            # Safe Card Styling
+            # Safe Card Styling (GREEN)
             self.result_card.configure(border_color="#00ff00")
             self.lbl_res_title.configure(text="Clean File", text_color="#00ff00")
             self.lbl_res_file.configure(text=f"File: {fname}")
