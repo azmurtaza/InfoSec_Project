@@ -48,38 +48,53 @@ def train_model():
 
     # 3. Merge
     print("[*] Merging datasets...")
-    # pandas concat will align columns. Missing columns (e.g., Byte_X in old data) become NaN.
     df = pd.concat(dfs, ignore_index=True)
-    
-    # Fill NaNs with 0. 
-    # Logic: If old data didn't have 'Byte_0', we assume 0 count (or acceptable missing value).
-    # If new data didn't have 'PE_Header', we assume 0 (not present).
     df = df.fillna(0)
 
-    # --- 1. Label Handling ---
-    if 'class' in df.columns:
-        # Ensure integer
-        df['class'] = df['class'].astype(int)
-        y = df['class']
-        X = df.drop(['class'], axis=1)
-    else:
-        # Fallback
-        print("[!] 'class' column missing, assuming last column is label")
-        y = df.iloc[:, -1].astype(int)
-        X = df.iloc[:, :-1]
+    # --- Feature Selection (Reduce Noise) ---
+    # The new_dataset introduces 256+ byte columns but only has 5 rows.
+    # The original dataset has 5200 rows without them (so they are 0).
+    # This confuses the model. We will drop columns that are predominantly 0/inactive
+    # to stick to the robust PE features from the main dataset.
     
+    print("[*] Performing Feature Selection (Removing Sparse Features)...")
+    threshold = 0.05 # If a feature is non-zero in less than 5% of data, drop it.
+    
+    # Keep 'class' safe
+    labels = df['class'] if 'class' in df.columns else df.iloc[:, -1]
+    potential_features = df.drop('class', axis=1) if 'class' in df.columns else df.iloc[:, :-1]
+    
+    # Calculate non-zero ratio
+    non_zeros = (potential_features != 0).sum() / len(potential_features)
+    keep_cols = non_zeros[non_zeros > threshold].index.tolist()
+    
+    # Force keep crucial PE headers if they happen to be 0 (unlikely for many, but safe)
+    # Actually, if 'NumberOfSections' is 0 for all, it's useless.
+    # So this logic is sound.
+    
+    # Reconstruct robust DF
+    if 'class' in df.columns:
+        df = df[keep_cols + ['class']]
+    else:
+        # If class was mixed in, this might be tricky, but we separated labels above.
+        # Safest to just rebuild X and y.
+        pass
+
+    y = labels.astype(int)
+    X = df[keep_cols]
+    
+    print(f"[*] Features reduced from {df.shape[1]} to {X.shape[1]}")
+    print(f"[*] Kept Features: {list(X.columns)[:10]} ...")
+
+    # --- 1. Label Handling (Already done above) ---
     print("Class Balance:")
     print(y.value_counts())
 
     # --- 2. Non-Numeric Handling & Specific Drops ---
-    # We will identify non-numeric columns. 
-    # For now, we drop them to ensure we can strictly match them in feature extraction.
-    # We also drop 'fileinfo' as it is an undefined feature for extraction.
     cols_to_drop = list(X.select_dtypes(exclude=[np.number]).columns)
     if 'fileinfo' in X.columns:
         cols_to_drop.append('fileinfo')
     
-    # Drop duplicates if any
     cols_to_drop = list(set(cols_to_drop))
 
     if len(cols_to_drop) > 0:
@@ -102,18 +117,17 @@ def train_model():
     # --- 6. Train Model with Tuning ---
     print("[*] Starting Hyperparameter Tuning (GridSearchCV)...")
     
-    # Define simple grid (expand for more tuning)
-    # Define simple grid for Gradient Boosting
+    # Using RandomForest for better robustness against noise than GradientBoosting sometimes,
+    # but sticking to GB as requested earlier.
     param_grid = {
-        'n_estimators': [100, 200, 300],
-        'learning_rate': [0.05, 0.1, 0.2],
-        'max_depth': [3, 5, 7],
-        'min_samples_split': [2, 5]
+        'n_estimators': [100, 200],
+        'learning_rate': [0.1],
+        'max_depth': [5],
+        'min_samples_split': [5]
     }
     
     base_clf = GradientBoostingClassifier(random_state=42)
     
-    # Grid Search (3-fold CV is enough for speed/robustness balance here)
     grid_search = GridSearchCV(estimator=base_clf, param_grid=param_grid, 
                                cv=3, n_jobs=-1, verbose=1, scoring='accuracy')
     
@@ -142,7 +156,6 @@ def train_model():
     importances = clf.feature_importances_
     feature_names = X.columns
     
-    # Create sorted list
     feature_imp = sorted(zip(importances, feature_names), reverse=True)
     
     print("Top 20 Most Influential Features:")

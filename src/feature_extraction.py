@@ -171,6 +171,17 @@ def extract_features(file_path):
             except Exception as e:
                 pass 
 
+            # Has Digital Signature? (Heuristic)
+            # IMAGE_DIRECTORY_ENTRY_SECURITY is index 4
+            try:
+                security_dir_size = pe.OPTIONAL_HEADER.DATA_DIRECTORY[4].Size
+                if security_dir_size > 0:
+                    features['has_signature'] = 1
+                else:
+                    features['has_signature'] = 0
+            except:
+                features['has_signature'] = 0 
+
         except Exception as e:
             print(f"Error parsing PE structure details: {e}")
             # If partial parsing, we keep what we have.
@@ -190,11 +201,16 @@ extract_pe_features = extract_features
 
 if __name__ == "__main__":
     # Test on itself 
-    f = extract_features("src/feature_extraction.py")
+    # Test on calc.exe
+    target = r"C:\Windows\System32\calc.exe"
+    if not os.path.exists(target):
+         target = "src/feature_extraction.py"
+         
+    f = extract_features(target)
     if f:
-        print(f"Extraction successful! Features count: {len(f)}")
+        print(f"Extraction successful for {target}!")
         print(f"File Size: {f.get('filesize')}")
-        print(f"Byte_0 frequency: {f.get('Byte_0')}")
         print(f"Is PE? {'NumberOfSections' in f}")
+        print(f"Has Signature? {f.get('has_signature')}")
     else:
         print("Extraction failed.")

@@ -35,30 +35,31 @@ class AntivirusApp(ctk.CTk):
         # --- Sidebar ---
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(5, weight=1)
+        # self.sidebar_frame.grid_rowconfigure(5, weight=1) # Removed to fix alignment
 
         self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="SENTINEL AI", font=ctk.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
         # Navigation Buttons
+        # Navigation Buttons
         self.btn_dashboard = ctk.CTkButton(self.sidebar_frame, text="Dashboard", command=lambda: self.show_frame("dashboard"))
-        self.btn_dashboard.grid(row=1, column=0, padx=20, pady=10)
+        self.btn_dashboard.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
         
         self.btn_scan = ctk.CTkButton(self.sidebar_frame, text="Scan File", command=lambda: self.show_frame("scan"))
-        self.btn_scan.grid(row=2, column=0, padx=20, pady=10)
+        self.btn_scan.grid(row=2, column=0, padx=20, pady=10, sticky="ew")
 
         self.btn_quarantine = ctk.CTkButton(self.sidebar_frame, text="Quarantine", command=lambda: self.show_frame("quarantine"))
-        self.btn_quarantine.grid(row=3, column=0, padx=20, pady=10)
+        self.btn_quarantine.grid(row=3, column=0, padx=20, pady=10, sticky="ew")
         
         self.btn_realtime = ctk.CTkButton(self.sidebar_frame, text="Realtime", command=lambda: self.show_frame("realtime"))
-        self.btn_realtime.grid(row=4, column=0, padx=20, pady=10)
+        self.btn_realtime.grid(row=4, column=0, padx=20, pady=10, sticky="ew")
 
         self.btn_quick = ctk.CTkButton(self.sidebar_frame, text="Quick Scan", command=lambda: self.show_frame("quick"))
-        self.btn_quick.grid(row=5, column=0, padx=20, pady=10)
+        self.btn_quick.grid(row=5, column=0, padx=20, pady=10, sticky="ew")
         
         # Grid Fix: Settings was at row 6, which is fine, but let's be explicit
         self.btn_settings = ctk.CTkButton(self.sidebar_frame, text="Settings", command=lambda: self.show_frame("settings"))
-        self.btn_settings.grid(row=6, column=0, padx=20, pady=10)
+        self.btn_settings.grid(row=6, column=0, padx=20, pady=10, sticky="ew")
 
         # --- Main Content Area ---
         self.main_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -319,10 +320,18 @@ class AntivirusApp(ctk.CTk):
     # --- Page: Quick Scan ---
     def setup_quick_scan(self):
         frame = self.frames["quick"]
-        ctk.CTkLabel(frame, text="Quick Scan", font=ctk.CTkFont(size=24)).pack(pady=20)
-        ctk.CTkLabel(frame, text="Scans Downloads, Desktop and Documents for threats.", text_color="#aaa").pack(pady=(0, 20))
+        ctk.CTkLabel(frame, text="Custom Scan", font=ctk.CTkFont(size=24)).pack(pady=20)
+        ctk.CTkLabel(frame, text="Select a folder to scan recursively for threats.", text_color="#aaa").pack(pady=(0, 20))
         
-        self.btn_start_quick = ctk.CTkButton(frame, text="Start Quick Scan", height=50, width=200, font=ctk.CTkFont(size=16), command=self.start_quick_scan)
+        # Folder Selection
+        self.selected_folder_path = None
+        self.btn_select_folder = ctk.CTkButton(frame, text="Select Folder", height=40, font=ctk.CTkFont(size=14), command=self.select_scan_folder)
+        self.btn_select_folder.pack(pady=10)
+        
+        self.lbl_selected_folder = ctk.CTkLabel(frame, text="No folder selected", text_color="gray")
+        self.lbl_selected_folder.pack(pady=5)
+
+        self.btn_start_quick = ctk.CTkButton(frame, text="Start Scan", height=50, width=200, font=ctk.CTkFont(size=16), command=self.start_quick_scan)
         self.btn_start_quick.pack(pady=20)
         
         self.quick_progress = ctk.CTkProgressBar(frame, width=400)
@@ -337,11 +346,24 @@ class AntivirusApp(ctk.CTk):
         self.quick_results_frame = ctk.CTkScrollableFrame(frame, width=700, height=300, label_text="Threats Found")
         self.quick_results_frame.pack(pady=10, fill="both", expand=True)
 
+    def select_scan_folder(self):
+        folder_selected = filedialog.askdirectory()
+        if folder_selected:
+            self.selected_folder_path = folder_selected
+            self.lbl_selected_folder.configure(text=f"Selected: {self.selected_folder_path}", text_color="white")
+            self.lbl_quick_status.configure(text="Ready to scan.")
+
     def start_quick_scan(self):
+        if not self.selected_folder_path:
+             self.lbl_quick_status.configure(text="Please select a folder first!", text_color="orange")
+             return
+
         self.btn_start_quick.configure(state="disabled")
+        self.btn_select_folder.configure(state="disabled")
+        
         self.quick_progress.pack(pady=20)
         self.quick_progress.start()
-        self.lbl_quick_status.configure(text="Scanning relevant folders...")
+        self.lbl_quick_status.configure(text=f"Scanning {os.path.basename(self.selected_folder_path)}...", text_color="white")
         
         # Clear previous results
         for widget in self.quick_results_frame.winfo_children():
@@ -350,21 +372,17 @@ class AntivirusApp(ctk.CTk):
         threading.Thread(target=self.run_quick_scan_logic).start()
 
     def run_quick_scan_logic(self):
-        user_home = os.path.expanduser("~")
-        targets = [
-            os.path.join(user_home, "Downloads"),
-            os.path.join(user_home, "Desktop"),
-            os.path.join(user_home, "Documents")
-        ]
-        
+        target = self.selected_folder_path
         threats = []
         
-        for target in targets:
-             # Basic progress update
-             self.after(0, lambda t=target: self.lbl_quick_status.configure(text=f"Scanning {os.path.basename(t)}..."))
-             
-             for result in self.scanner.scan_directory(target):
-                 threats.append(result)
+        # Basic progress update
+        self.after(0, lambda: self.lbl_quick_status.configure(text=f"Scanning {target}..."))
+        
+        try:
+            for result in self.scanner.scan_directory(target):
+                threats.append(result)
+        except Exception as e:
+            print(f"Error checking directory: {e}")
         
         self.after(0, lambda: self.finish_quick_scan(threats))
 
@@ -372,6 +390,7 @@ class AntivirusApp(ctk.CTk):
         self.quick_progress.stop()
         self.quick_progress.pack_forget()
         self.btn_start_quick.configure(state="normal")
+        self.btn_select_folder.configure(state="normal")
         
         if not threats:
             self.lbl_quick_status.configure(text="Scan Complete. No threats found!")
