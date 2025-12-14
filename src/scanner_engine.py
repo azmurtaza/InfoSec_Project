@@ -151,25 +151,39 @@ class MalwareScanner:
         
         try:
             probs = self.model.predict_proba(X_input)[0]
-            malware_prob = probs[1] * 100
             
-            # Tuning: Thresholds
-            if malware_prob > 60:
-                prediction = 1
-                confidence = malware_prob
-                status = "malware"
-            elif malware_prob > 40:
-                prediction = 1 
-                confidence = malware_prob
-                status = "suspicious" 
-            elif malware_prob > 10:
-                # Low confidence but present
+            # CRITICAL: Model has 3 classes: [-1 (unknown), 0 (benign), 1 (malware)]
+            # probs[0] = P(class=-1), probs[1] = P(class=0), probs[2] = P(class=1)
+            unknown_prob = probs[0] * 100
+            benign_prob = probs[1] * 100
+            malware_prob = probs[2] * 100
+            
+            # Use actual prediction from model
+            pred_class = self.model.predict(X_input)[0]
+            
+            # Determine status based on prediction and confidence
+            if pred_class == 1:  # Malware
+                if malware_prob > 70:
+                    prediction = 1
+                    confidence = malware_prob
+                    status = "malware"
+                elif malware_prob > 50:
+                    prediction = 1
+                    confidence = malware_prob
+                    status = "suspicious"
+                else:
+                    # Low confidence malware - treat as suspicious
+                    prediction = 0
+                    confidence = benign_prob
+                    status = "benign"
+            elif pred_class == 0:  # Benign
                 prediction = 0
-                confidence = malware_prob
+                confidence = benign_prob
                 status = "benign"
-            else:
+            else:  # Unknown (-1)
+                # Treat unknown as benign with low confidence
                 prediction = 0
-                confidence = probs[0] * 100 
+                confidence = max(benign_prob, unknown_prob)
                 status = "benign"
                 
         except Exception as e:
