@@ -1,0 +1,47 @@
+Starting debug...
+Read 49152 bytes.
+Instantiating PEFeatureExtractor...
+PEFeatureExtractor instantiated.
+Extracting features...
+EXCEPTION CAUGHT:
+Traceback (most recent call last):
+  File "src/debug_ember.py", line 31, in <module>
+    features = extractor.feature_vector(file_data)
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\ember\features.py", line 556, in feature_vector
+    return self.process_raw_features(self.raw_features(bytez))
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\ember\features.py", line 548, in raw_features
+    features.update({fe.name: fe.raw_features(bytez, lief_binary) for fe in self.features})
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\ember\features.py", line 548, in <dictcomp>
+    features.update({fe.name: fe.raw_features(bytez, lief_binary) for fe in self.features})
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\ember\features.py", line 100, in raw_features
+    output = np.zeros((16, 16), dtype=np.int)
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\numpy\__init__.py", line 305, in __getattr__
+    raise AttributeError(__former_attrs__[attr])
+AttributeError: module 'numpy' has no attribute 'int'.
+`np.int` was a deprecated alias for the builtin `int`. To avoid this error in existing code, use `int` by itself. Doing this will not modify any behavior and is safe. When replacing `np.int`, you may wish to use e.g. `np.int64` or `np.int32` to specify the precision. If you wish to review your current use, check the release note link for additional information.
+The aliases was originally deprecated in NumPy 1.20; for more details and guidance see the original release note at:
+    https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+Done.
+Starting debug...
+Read 49152 bytes.
+Instantiating PEFeatureExtractor...
+PEFeatureExtractor instantiated.
+Extracting features...
+EXCEPTION CAUGHT:
+Traceback (most recent call last):
+  File "src/debug_ember.py", line 43, in <module>
+    features = extractor.feature_vector(file_data)
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\ember\features.py", line 556, in feature_vector
+    return self.process_raw_features(self.raw_features(bytez))
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\ember\features.py", line 552, in process_raw_features
+    feature_vectors = [fe.process_raw_features(raw_obj[fe.name]) for fe in self.features]
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\ember\features.py", line 552, in <listcomp>
+    feature_vectors = [fe.process_raw_features(raw_obj[fe.name]) for fe in self.features]
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\ember\features.py", line 192, in process_raw_features
+    entry_name_hashed = FeatureHasher(50, input_type="string").transform([raw_obj['entry']]).toarray()[0]
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\sklearn\utils\_set_output.py", line 157, in wrapped
+    data_to_wrap = f(self, X, *args, **kwargs)
+  File "C:\Users\azanm\AppData\Local\Programs\Python\Python38\lib\site-packages\sklearn\feature_extraction\_hash.py", line 172, in transform
+    raise ValueError(
+ValueError: Samples can not be a single string. The input must be an iterable over iterables of strings.
+Done.

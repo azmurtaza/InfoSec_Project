@@ -8,35 +8,30 @@ import hashlib
 
 class MalwareScanner:
     def __init__(self):
-        # 1. Smart Path Finding (Like before)
+        # 1. Path Setup
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.model_path = os.path.join(self.script_dir, '..', 'models', 'classifier.pkl')
-        self.features_path = os.path.join(self.script_dir, '..', 'models', 'features.json')
         
         # Blacklist (SHA256 hashes of known malware)
         self.BLACKLIST = {
             "cf8bd9dfddff007f75adf4c2be48005deb30972b522858b5404113aa09673225", # EICAR Test File
-            "44d88612fea8a8f36de82e1278abb02f" # Example MD5 (we'll implement flexible checking if needed, but sticking to SHA256 for now)
         }
         
         self.EICAR_STRING = rb"X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
         
-        # 2. Load the Brain and the "Memory" (Feature List)
+        # 2. Load the Brain (LightGBM Model)
         print(f"[*] Loading model from {self.model_path}...")
         try:
             self.model = joblib.load(self.model_path)
             
-            # Load Scaler
-            scaler_path = os.path.join(self.script_dir, '..', 'models', 'scaler.pkl')
-            self.scaler = joblib.load(scaler_path)
+            # Setup Ember Adapter
+            from ember_adapter import EmberAdapter
+            self.adapter = EmberAdapter()
             
-            with open(self.features_path, 'r') as f:
-                self.features_list = json.load(f)
-            print("[+] Model and Scaler loaded successfully!")
+            print("[+] Model and Ember Adapter loaded successfully!")
         except Exception as e:
-            print(f"[!] Critical Error loading model/scaler: {e}")
+            print(f"[!] Critical Error loading model: {e}")
             self.model = None
-            self.scaler = None
 
     def calculate_file_hash(self, file_path):
         """Calculates SHA256 hash of a file."""
@@ -51,8 +46,8 @@ class MalwareScanner:
             return None
 
     def scan_file(self, file_path):
-        if not self.model or not self.scaler:
-            return "Error: Model or Scaler not loaded."
+        if not self.model:
+            return "Error: Model not loaded."
 
         if not os.path.exists(file_path):
             return "Error: File not found."
@@ -93,76 +88,53 @@ class MalwareScanner:
         except:
              pass
 
-        # 1. Extract Features (The Eyes)
-        print(f"[*] Extracting features from: {os.path.basename(file_path)}")
-        data = feature_extraction.extract_pe_features(file_path)
+        # 1. Extract Features (The Eyes) - Using Ember Adapter
+        print(f"[*] Extracting EMBER features from: {os.path.basename(file_path)}")
         
-        if data is None:
-            return "Error: File read error."
+        # Metadata for heuristics (Legacy extraction)
+        metadata = feature_extraction.extract_pe_features(file_path) or {}
 
-        # Check for PE signature (by proxy of NumberOfSections which is always extracted for PE)
-        if 'NumberOfSections' not in data:
-            # PE parsing failed or it's not a PE file
-            # CRITICAL: Check file extension - .exe/.dll MUST go through ML even if PE parsing fails
+        try:
+            # We use the adapter to get the (1, 2381) vector
+            X_input = self.adapter.extract_features(file_path)
+            
+            if X_input is None:
+                raise ValueError("Feature extraction returned None")
+                
+        except Exception as e:
+            # Fallback for non-PE files or errors
+            # CRITICAL: Check file extension - .exe/.dll MUST go through ML
             file_ext = os.path.splitext(file_path)[1].lower()
             
             if file_ext in ['.exe', '.dll', '.sys', '.scr', '.com']:
-                # This is supposed to be an executable but PE parsing failed
-                # This could be:
-                # 1. Packed/obfuscated malware
-                # 2. Corrupted malware
-                # 3. Non-PE malware (e.g., DOS executable)
-                # NEVER mark as safe - flag as suspicious
-                sus_strings = data.get('Suspicious_Strings', 0)
-                entropy = data.get('E_file', 0)
+                # Check for signature using legacy metadata to avoid False Positives
+                if metadata.get('has_signature', 0) == 1:
+                     print(f"[*] Extraction failed but valid signature found for {os.path.basename(file_path)}.")
+                     return {
+                        "status": "benign",
+                        "confidence": 0.0,
+                        "file_path": file_path,
+                        "file_name": os.path.basename(file_path),
+                        "Type": "Clean (Signed/Failed Parse)",
+                        "Severity": "Safe",
+                        "Protocol": "None",
+                        "message": "Safe File (Signed)",
+                        "recommendation": "None"
+                    }
                 
-                # High entropy or suspicious strings = likely malware
-                if entropy > 7.0 or sus_strings > 1:
-                    return {
+                return {
                         "status": "malware",
                         "confidence": 99.0,
                         "file_path": file_path,
                         "file_name": os.path.basename(file_path),
-                        "Type": "Suspicious Executable (Failed PE Parse)",
+                        "Type": "Suspicious Executable (Failed Parse)",
                         "Severity": "High",
                         "Protocol": "Quarantine Immediately",
-                        "message": f"Malformed/Packed Executable Detected (Entropy: {entropy:.2f})",
+                        "message": f"Malformed/Packed Executable Detected",
                         "recommendation": "Immediate Quarantine"
                     }
-                else:
-                    # Low entropy, no suspicious strings, but still an .exe
-                    # Mark as suspicious, not clean
-                    return {
-                        "status": "malware",
-                        "confidence": 90.0,
-                        "file_path": file_path,
-                        "file_name": os.path.basename(file_path),
-                        "Type": "Suspicious Executable",
-                        "Severity": "Medium",
-                        "Protocol": "Manual Review Required",
-                        "message": "Executable with unusual structure",
-                        "recommendation": "Manual Inspection"
-                    }
             else:
-                # Not an executable file extension (txt, jpg, pdf, etc.)
-                # Check for suspicious strings
-                sus_strings = data.get('Suspicious_Strings', 0)
-                if sus_strings > 0:
-                    # Suspicious script or document
-                    return {
-                        "status": "malware",
-                        "confidence": 92.0,
-                        "file_path": file_path,
-                        "file_name": os.path.basename(file_path),
-                        "Type": "Suspicious Script/File",
-                        "Severity": "Medium",
-                        "Protocol": "Review Content",
-                        "message": f"Suspicious Activity Detected ({sus_strings} string matches)",
-                        "recommendation": "Manual Inspection"
-                    }
-                else:
-                    # Truly clean non-executable
-                    return {
+                return {
                         "status": "benign",
                         "confidence": 0.0,
                         "file_path": file_path,
@@ -174,70 +146,40 @@ class MalwareScanner:
                         "recommendation": "None"
                     }
 
-        # 2. Align Features (The Bridge) - CRITICAL STEP
-        # The model expects exactly 68 columns in a specific order.
-        # If the file has extra data, ignore it. If missing data, fill with 0.
-        
-        input_data = {}
-        for feature in self.features_list:
-            # Get the value if it exists, otherwise 0
-            input_data[feature] = data.get(feature, 0)
-            
-        # Convert to DataFrame (Single row)
-        df = pd.DataFrame([input_data])
-        
-        # 3. Scale Data (CRITICAL FIX)
-        # We must scale the data exactly like we did during training!
-        try:
-            X_scaled = self.scaler.transform(df)
-        except Exception as e:
-            print(f"[!] Warning: Scaler transform failed ({e}). Predictions might be inaccurate.")
-            X_scaled = df
-
-        # 4. Predict (The Brain)
+        # 4. Predict (The Brain) - No scaling needed for Ember/LightGBM usually, or model has it built-in if pipeline used
+        # Ideally LightGBM handles it.
         
         try:
-            # Fix: Use the maximum probability (confidence in the specific prediction)
-            # transform is already applied above
-            probs = self.model.predict_proba(X_scaled)[0]
-            confidence = max(probs) * 100
-            
-            # Tuning: Thresholds (MAXIMUM CONFIDENCE MODE)
-            # > 60% => Malware (High Confidence)
-            # 40% - 60% => Suspicious / Potential Threat
-            # < 40% => Clean
-            
+            probs = self.model.predict_proba(X_input)[0]
             malware_prob = probs[1] * 100
             
+            # Tuning: Thresholds
             if malware_prob > 60:
                 prediction = 1
                 confidence = malware_prob
                 status = "malware"
             elif malware_prob > 40:
-                prediction = 1 # Treat as "positive" detection but lower severity
+                prediction = 1 
                 confidence = malware_prob
-                status = "suspicious" # New status for internal logic
+                status = "suspicious" 
+            elif malware_prob > 10:
+                # Low confidence but present
+                prediction = 0
+                confidence = malware_prob
+                status = "benign"
             else:
                 prediction = 0
                 confidence = probs[0] * 100 
                 status = "benign"
                 
-        except:
-            prediction = self.model.predict(X_scaled)[0]
-            confidence = 100.0
-            status = "malware" if prediction == 1 else "benign"
+        except Exception as e:
+            print(f"[!] Prediction Error: {e}")
+            return "Error: Prediction failed."
 
         # 5. Result Construction
-        # We pass the calculated status to help get_threat_details if needed, 
-        # though currently it uses prediction.
-        
-        # Mapping for GUI compatibility (GUI expects 'malware' or 'benign')
-        # We will mark "suspicious" as "malware" for the GUI to trigger the alert,
-        # but change the Type/Severity to reflect it's borderline.
-        
         gui_status = "benign" if status == "benign" else "malware"
         
-        threat_details = self.get_threat_details(input_data, prediction, confidence, status)
+        threat_details = self.get_threat_details(metadata, prediction, confidence, status)
         
         result = {
             "status": gui_status,
@@ -250,20 +192,6 @@ class MalwareScanner:
             "message": f"{threat_details['Type']} Detected! ({confidence:.2f}%)" if gui_status == "malware" else "Safe File",
             "recommendation": threat_details['Protocol'] 
         }
-            
-        # 6. Heuristic Override (Safety Net)
-        # If the file appears to have a Digital Signature (Certificate), we trust it more.
-        # This reduces false positives on standard Windows files like calc.exe.
-        if input_data.get('has_signature', 0) == 1:
-             print(f"[*] Signature Detected for {os.path.basename(file_path)}. Applying trust bonus.")
-             if result['status'] == 'malware':
-                 # Reduce confidence significantly
-                 result['confidence'] = max(0, result['confidence'] - 60.0) # Penalty
-                 if result['confidence'] < 80:
-                     result['status'] = 'benign'
-                     result['Type'] = 'Clean (Signed)'
-                     result['message'] = "Safe File (Signed)"
-                     result['recommendation'] = "None"
         
         return result
 

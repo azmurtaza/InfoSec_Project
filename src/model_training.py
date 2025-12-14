@@ -4,173 +4,143 @@ import numpy as np
 import joblib
 import json
 import os
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+import lightgbm as lgb
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 def train_model():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    dataset_path = os.path.join(script_dir, '..', 'data', 'dataset.csv')
-    new_dataset_path = os.path.join(script_dir, '..', 'data', 'new_dataset.csv')
-    
-    # Paths for artifacts
+    data_dir = os.path.join(script_dir, '..', 'data')
     models_dir = os.path.join(script_dir, '..', 'models')
+    
+    train_path = os.path.join(data_dir, 'train.parquet')
+    test_path = os.path.join(data_dir, 'test.parquet')
+    
     model_path = os.path.join(models_dir, 'classifier.pkl')
-    scaler_path = os.path.join(models_dir, 'scaler.pkl')
-    features_path = os.path.join(models_dir, 'features.json')
-
+    # Scaler is not typically needed for Tree-based models like LightGBM, but we can keep the path variable if we need it later.
+    
     if not os.path.exists(models_dir):
         os.makedirs(models_dir)
 
-    # --- Load Hybrid Dataset ---
-    dfs = []
-    
-    # 1. Load Original Dataset
-    if os.path.exists(dataset_path):
-        print(f"[*] Loading original dataset: {dataset_path}")
-        df_old = pd.read_csv(dataset_path)
-        dfs.append(df_old)
-    else:
-        print(f"[!] Original dataset not found at {dataset_path}")
-
-    # 2. Load New Dataset (Byte Features)
-    if os.path.exists(new_dataset_path):
-        print(f"[*] Loading new dataset: {new_dataset_path}")
-        df_new = pd.read_csv(new_dataset_path)
-        dfs.append(df_new)
-    else:
-        print(f"[*] New dataset not found at {new_dataset_path} (skipping)")
-
-    if not dfs:
-        print("[!] No datasets found! Exiting.")
+    print("[*] Loading Ember training data from Parquet...")
+    if not os.path.exists(train_path):
+        print(f"[!] Training data not found at {train_path}")
         return
 
-    # 3. Merge
-    print("[*] Merging datasets...")
-    df = pd.concat(dfs, ignore_index=True)
-    df = df.fillna(0)
+    # Memory-efficient loading strategy
+    import pyarrow.parquet as pq
+    import pyarrow as pa
+    
+    def load_parquet_robust(path):
+        try:
+            print(f"[*] Attempting full load of {path}...")
+            # Use pyarrow engine explicitly
+            df = pd.read_parquet(path, engine='pyarrow')
+            return df
+        except (pa.ArrowMemoryError, MemoryError) as e:
+            print(f"[!] Full load failed: {e}")
+            print("[*] Attempting chunked load (subsampling)...")
+            
+            try:
+                parquet_file = pq.ParquetFile(path)
+                num_row_groups = parquet_file.num_row_groups
+                print(f"[*] Total row groups: {num_row_groups}")
+                
+                # Try loading 50%
+                dfs = []
+                total_rows = 0
+                # Iterate and skip every other group to subsample 50% evenly
+                for i in range(0, num_row_groups, 2):
+                    t = parquet_file.read_row_group(i)
+                    df_chunk = t.to_pandas()
+                    dfs.append(df_chunk)
+                    total_rows += len(df_chunk)
+                    # Safety check on memory - Cap at ~300k samples if tightly constrained (4MB check failed)
+                    if total_rows > 300000: 
+                        print("[!] Capped at ~300k samples to prevent OOM")
+                        break
+                        
+                print(f"[*] Loaded {len(dfs)} chunks ({total_rows} rows). Concatenating...")
+                return pd.concat(dfs, ignore_index=True)
+                
+            except Exception as e2:
+                print(f"[!] Chunked load failed: {e2}")
+                return None
 
-    # --- Feature Selection (Reduce Noise) ---
-    # The new_dataset introduces 256+ byte columns but only has 5 rows.
-    # The original dataset has 5200 rows without them (so they are 0).
-    # This confuses the model. We will drop columns that are predominantly 0/inactive
-    # to stick to the robust PE features from the main dataset.
+    df_train = load_parquet_robust(train_path)
+    if df_train is None:
+        print("[!] Critical: Could not load training data.")
+        return
     
-    print("[*] Performing Feature Selection (Removing Sparse Features)...")
-    threshold = 0.05 # If a feature is non-zero in less than 5% of data, drop it.
+    # AGGRESSIVE SUBSAMPLING TO PREVENT MEMORY CRASH
+    MAX_SAMPLES = 150000
+    if len(df_train) > MAX_SAMPLES:
+        print(f"[*] Dataset too large ({len(df_train)}). Subsampling to {MAX_SAMPLES} for memory safety...")
+        df_train = df_train.sample(n=MAX_SAMPLES, random_state=42)
+        import gc
+        gc.collect()
+
+    # Handle labels
+    target_col = 'label'
+    if 'label' not in df_train.columns:
+        candidates = [c for c in df_train.columns if 'lab' in c.lower()]
+        if candidates:
+            target_col = candidates[0]
+        else:
+            target_col = df_train.columns[-1]
+            
+    print(f"[*] Identified target column: {target_col}")
+
+    y_train = df_train[target_col]
+    X_train = df_train.drop(columns=[target_col])
     
-    # Keep 'class' safe
-    labels = df['class'] if 'class' in df.columns else df.iloc[:, -1]
-    potential_features = df.drop('class', axis=1) if 'class' in df.columns else df.iloc[:, :-1]
+    # optimize memory
+    del df_train
+    import gc
+    gc.collect()
+
+    print(f"[*] Training Data Shape: {X_train.shape}")
     
-    # Calculate non-zero ratio
-    non_zeros = (potential_features != 0).sum() / len(potential_features)
-    keep_cols = non_zeros[non_zeros > threshold].index.tolist()
-    
-    # Force keep crucial PE headers if they happen to be 0 (unlikely for many, but safe)
-    # Actually, if 'NumberOfSections' is 0 for all, it's useless.
-    # So this logic is sound.
-    
-    # Reconstruct robust DF
-    if 'class' in df.columns:
-        df = df[keep_cols + ['class']]
+    # Load Test Data
+    print("[*] Loading Ember test data...")
+    if os.path.exists(test_path):
+        df_test = pd.read_parquet(test_path)
+        y_test = df_test[target_col]
+        X_test = df_test.drop(columns=[target_col])
+        del df_test
+        gc.collect()
     else:
-        # If class was mixed in, this might be tricky, but we separated labels above.
-        # Safest to just rebuild X and y.
-        pass
+        print("[!] Test data not found. Splitting training data...")
+        from sklearn.model_selection import train_test_split
+        X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
-    y = labels.astype(int)
-    X = df[keep_cols]
+    # --- Train LightGBM ---
+    print("[*] Training LightGBM Model (this may take a while)...")
     
-    print(f"[*] Features reduced from {df.shape[1]} to {X.shape[1]}")
-    print(f"[*] Kept Features: {list(X.columns)[:10]} ...")
-
-    # --- 1. Label Handling (Already done above) ---
-    print("Class Balance:")
-    print(y.value_counts())
-
-    # --- 2. Non-Numeric Handling & Specific Drops ---
-    cols_to_drop = list(X.select_dtypes(exclude=[np.number]).columns)
-    if 'fileinfo' in X.columns:
-        cols_to_drop.append('fileinfo')
+    # Fast training configuration
+    clf = lgb.LGBMClassifier(
+        n_estimators=100,
+        learning_rate=0.05,
+        num_leaves=31, 
+        max_depth=5, 
+        random_state=42,
+        n_jobs=-1
+    )
     
-    cols_to_drop = list(set(cols_to_drop))
-
-    if len(cols_to_drop) > 0:
-        print(f"[*] The following columns will be dropped: {cols_to_drop}")
-        X = X.drop(cols_to_drop, axis=1)
-
-    # --- 3. Missing Values & Hygiene ---
-    X = X.fillna(0)
+    clf.fit(X_train, y_train)
     
-    # --- 4. Scaling ---
-    print("[*] Scaling features (StandardScaler)...")
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    print(f"[*] Training on {len(X)} samples with {X.shape[1]} features.")
-
-    # --- 5. Train/Test Split ---
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-
-    # --- 6. Train Model with Tuning ---
-    print("[*] Starting Hyperparameter Tuning (GridSearchCV)...")
+    print("[*] Model trained.")
     
-    # Using RandomForest for better robustness against noise than GradientBoosting sometimes,
-    # but sticking to GB as requested earlier.
-    param_grid = {
-        'n_estimators': [100, 200],
-        'learning_rate': [0.1],
-        'max_depth': [5],
-        'min_samples_split': [5]
-    }
-    
-    base_clf = GradientBoostingClassifier(random_state=42)
-    
-    grid_search = GridSearchCV(estimator=base_clf, param_grid=param_grid, 
-                               cv=3, n_jobs=-1, verbose=1, scoring='accuracy')
-    
-    grid_search.fit(X_train, y_train)
-    
-    print("\n" + "="*30)
-    print(f" BEST PARAMS: {grid_search.best_params_}")
-    print("="*30)
-    
-    clf = grid_search.best_estimator_
-
-    # --- 7. Evaluation ---
+    # --- Evaluation ---
+    print("[*] Evaluating...")
     y_pred = clf.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
     
-    print("\n" + "="*30)
-    print(f" FINAL ACCURACY: {acc * 100:.2f}%")
-    print("="*30)
-    print("Classification Report:")
-    print(classification_report(y_test, y_pred, target_names=['Benign', 'Malware']))
-    print("Confusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
-
-    # --- Feature Importance ---
-    print("\n[*] Feature Importance Analysis:")
-    importances = clf.feature_importances_
-    feature_names = X.columns
+    print(f"FINAL ACCURACY: {acc * 100:.2f}%")
+    print(classification_report(y_test, y_pred))
     
-    feature_imp = sorted(zip(importances, feature_names), reverse=True)
-    
-    print("Top 20 Most Influential Features:")
-    for score, name in feature_imp[:20]:
-        print(f"   {name}: {score:.4f}")
-
-    # --- 8. Save Artifacts ---
-    print(f"\n[*] Saving model artifacts to {models_dir}...")
+    # --- Save ---
+    print(f"[*] Saving model to {model_path}...")
     joblib.dump(clf, model_path)
-    joblib.dump(scaler, scaler_path)
-    
-    # Save feature list
-    with open(features_path, 'w') as f:
-        json.dump(list(X.columns), f)
-        
     print("[*] Done.")
 
 if __name__ == "__main__":

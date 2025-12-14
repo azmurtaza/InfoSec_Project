@@ -5,3 +5,8 @@ numpy
 joblib
 customtkinter
 watchdog
+ember
+lief
+lightgbm
+pyarrow
+fastparquet
