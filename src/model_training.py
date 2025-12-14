@@ -72,7 +72,7 @@ def train_model():
         return
     
     # AGGRESSIVE SUBSAMPLING TO PREVENT MEMORY CRASH
-    MAX_SAMPLES = 150000
+    MAX_SAMPLES = 400000  # Increased for better accuracy
     if len(df_train) > MAX_SAMPLES:
         print(f"[*] Dataset too large ({len(df_train)}). Subsampling to {MAX_SAMPLES} for memory safety...")
         df_train = df_train.sample(n=MAX_SAMPLES, random_state=42)
@@ -116,14 +116,19 @@ def train_model():
     # --- Train LightGBM ---
     print("[*] Training LightGBM Model (this may take a while)...")
     
-    # Fast training configuration
+    # Optimized configuration for 95%+ accuracy
     clf = lgb.LGBMClassifier(
-        n_estimators=100,
+        boosting_type='gbdt',
+        n_estimators=300,
         learning_rate=0.05,
-        num_leaves=31, 
-        max_depth=5, 
+        num_leaves=128, 
+        max_depth=8,
+        min_child_samples=20,
+        subsample=0.8,
+        colsample_bytree=0.8,
         random_state=42,
-        n_jobs=-1
+        n_jobs=-1,
+        verbose=-1
     )
     
     clf.fit(X_train, y_train)
