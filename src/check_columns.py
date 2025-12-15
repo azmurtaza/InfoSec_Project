@@ -8,3 +8,4 @@ try:
     print("Columns written to cols.txt")
 except Exception as e:
     print(e)
+#temp
