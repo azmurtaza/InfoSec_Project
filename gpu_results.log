@@ -1,0 +1,42 @@
+======================================================================
+LightGBM GPU Support Test
+======================================================================
+
+LightGBM version: 4.6.0
+
+[*] Creating sample dataset...
+
+======================================================================
+Test 1: CPU Training (Baseline)
+======================================================================
+[*] Training on CPU...
+[FAILED] CPU training failed: train() got an unexpected keyword argument 'verbose_eval'
+
+======================================================================
+Test 2: GPU Training
+======================================================================
+[*] Attempting GPU training...
+
+[FAILED] GPU training FAILED
+Error: train() got an unexpected keyword argument 'verbose_eval'
+
+======================================================================
+[WARNING] GPU ACCELERATION NOT AVAILABLE
+======================================================================
+
+ROOT CAUSE:
+LightGBM was NOT compiled with GPU support.
+
+SOLUTION:
+1. Uninstall current LightGBM:
+   pip uninstall lightgbm -y
+
+2. Install GPU-enabled version:
+   pip install lightgbm --config-settings=cmake.define.USE_GPU=ON
+
+3. Or build from source with GPU support
+
+4. Verify CUDA toolkit is installed
+   Download from: https://developer.nvidia.com/cuda-downloads
+
+======================================================================
