@@ -114,11 +114,15 @@ def train_model():
         X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
     # --- Train LightGBM ---
-    print("[*] Training LightGBM Model (this may take a while)...")
+    print("[*] Training LightGBM Model with GPU acceleration (RTX 3050)...")
+    print("[*] This should be significantly faster than CPU training!")
     
-    # Optimized configuration for 95%+ accuracy
+    # Optimized configuration for 95%+ accuracy with GPU acceleration
     clf = lgb.LGBMClassifier(
         boosting_type='gbdt',
+        device='gpu',  # Enable GPU acceleration
+        gpu_platform_id=0,
+        gpu_device_id=0,
         n_estimators=300,
         learning_rate=0.05,
         num_leaves=128, 
@@ -127,7 +131,6 @@ def train_model():
         subsample=0.8,
         colsample_bytree=0.8,
         random_state=42,
-        n_jobs=-1,
         verbose=-1
     )
     

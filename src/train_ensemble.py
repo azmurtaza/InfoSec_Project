@@ -57,10 +57,13 @@ def train_ensemble():
         del df_train
         gc.collect()
         
-        # Train model with optimized params
-        print(f"[*] Training LightGBM Model {model_idx + 1}...")
+        # Train model with optimized params and GPU acceleration
+        print(f"[*] Training LightGBM Model {model_idx + 1} with GPU acceleration...")
         clf = lgb.LGBMClassifier(
             boosting_type='gbdt',
+            device='gpu',  # Enable GPU acceleration
+            gpu_platform_id=0,
+            gpu_device_id=0,
             n_estimators=200,  # Reduced for faster training
             learning_rate=0.05,
             num_leaves=128,
@@ -69,7 +72,6 @@ def train_ensemble():
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=42 + model_idx,
-            n_jobs=-1,
             verbose=-1
         )
         
