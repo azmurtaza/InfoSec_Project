@@ -5,8 +5,11 @@ from watchdog.events import FileSystemEventHandler
 from scanner_engine import MalwareScanner
 
 class RealTimeHandler(FileSystemEventHandler):
-    def __init__(self, callback):
-        self.scanner = MalwareScanner()
+    def __init__(self, callback, scanner=None):
+        if scanner:
+            self.scanner = scanner
+        else:
+            self.scanner = MalwareScanner()
         self.callback = callback
 
     def on_created(self, event):
@@ -44,9 +47,9 @@ class RealTimeHandler(FileSystemEventHandler):
             print(f"[RealTime] Error scanning {file_path}: {e}")
 
 class RealTimeProtector:
-    def __init__(self, threat_callback):
+    def __init__(self, threat_callback, scanner=None):
         self.observer = Observer()
-        self.handler = RealTimeHandler(threat_callback)
+        self.handler = RealTimeHandler(threat_callback, scanner)
         # Default to Downloads for safety/demo
         self.watch_path = os.path.join(os.path.expanduser("~"), "Downloads")
         self.is_running = False

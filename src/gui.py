@@ -30,7 +30,7 @@ class AntivirusApp(ctk.CTk):
         self.current_threat_type = "Generic"
         
         # Real-time Protection
-        self.protector = RealTimeProtector(self.on_realtime_threat_detected)
+        self.protector = RealTimeProtector(self.on_realtime_threat_detected, self.scanner)
 
         # --- Sidebar ---
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
