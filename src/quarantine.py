@@ -40,6 +40,15 @@ def log_quarantine(original_path, threat_type):
     with open(QUARANTINE_LOG_FILE, 'w') as f:
         json.dump(logs, f, indent=4)
 
+def get_quarantined_files():
+    """Returns the list of quarantined files from the log."""
+    setup_directories()
+    try:
+        with open(QUARANTINE_LOG_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return []
+
 def quarantine_file(file_path, threat_type="Generic Malware"):
     """
     Moves a file to quarantine.

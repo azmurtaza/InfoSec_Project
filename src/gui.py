@@ -1,13 +1,12 @@
-
 import customtkinter as ctk
 import os
-import json
 import threading
 import time
 from tkinter import filedialog
 from scanner_engine import MalwareScanner
-from quarantine import quarantine_file, delete_quarantined_file, restore_file, sync_quarantine_vault
 from realtime_protection import RealTimeProtector
+from quarantine import quarantine_file, sync_quarantine_vault, restore_file as unlock_file, delete_quarantined_file, get_quarantined_files
+from notifications import get_notification_manager
 from datetime import datetime
 
 # --- Cybersecurity Theme Configuration ---
@@ -49,6 +48,9 @@ class AntivirusApp(ctk.CTk):
         
         # Real-time Protection
         self.protector = RealTimeProtector(self.on_realtime_threat_detected, self.scanner)
+        
+        # Notification Manager
+        self.notification_manager = get_notification_manager()
 
         # --- Professional Sidebar ---
         self._create_sidebar()
@@ -61,7 +63,7 @@ class AntivirusApp(ctk.CTk):
 
         # Create Pages
         self.frames = {}
-        for page in ["dashboard", "scan", "quarantine", "settings", "realtime", "quick"]:
+        for page in ["dashboard", "scan", "quarantine", "settings", "realtime", "quick", "cloud_protection"]:
             self.frames[page] = ctk.CTkFrame(self.main_frame, fg_color="transparent")
             self.frames[page].grid(row=0, column=0, sticky="nsew")
             self.frames[page].grid_columnconfigure(0, weight=1)
@@ -73,6 +75,7 @@ class AntivirusApp(ctk.CTk):
         self.setup_settings()
         self.setup_realtime()
         self.setup_quick_scan()
+        self.setup_cloud_protection()  # New dedicated page
 
         # Start on Dashboard
         self.show_frame("dashboard")
@@ -115,9 +118,10 @@ class AntivirusApp(ctk.CTk):
             ("🏠 Dashboard", "dashboard", 2),
             ("🔍 Scan File", "scan", 3),
             ("🔒 Quarantine", "quarantine", 4),
-            ("🛡️Realtime", "realtime", 5),
+            ("🛡️ Realtime", "realtime", 5),
             ("⚡ Quick Scan", "quick", 6),
-            ("⚙️ Settings", "settings", 7)
+            ("☁️ Cloud Protection", "cloud_protection", 7),
+            ("⚙️ Settings", "settings", 8)
         ]
 
         for text, page, row in nav_buttons:
@@ -705,9 +709,10 @@ class AntivirusApp(ctk.CTk):
             settings_container, 
             text="Enable Notifications",
             font=ctk.CTkFont(size=14, family="Roboto"),
-            progress_color=COLORS["accent"]
+            progress_color=COLORS["accent"],
+            command=self.toggle_notifications
         )
-        self.sw_notify.select()
+        self.sw_notify.select() # Default to True
         self.sw_notify.pack(pady=10, padx=30, anchor="w")
         
         self.sw_auto_q = ctk.CTkSwitch(
@@ -718,38 +723,80 @@ class AntivirusApp(ctk.CTk):
         )
         self.sw_auto_q.pack(pady=10, padx=30, anchor="w")
         
-        # Cloud Scanning Section
+        # About Section
         ctk.CTkLabel(
             settings_container, 
-            text="Cloud Reputation Scanning",
+            text="About",
             font=ctk.CTkFont(size=16, weight="bold", family="Roboto")
         ).pack(pady=(30, 15))
         
-        # Privacy notice
-        privacy_frame = ctk.CTkFrame(settings_container, fg_color=COLORS["bg_primary"], corner_radius=8)
-        privacy_frame.pack(pady=10, padx=30, fill="x")
+        ctk.CTkLabel(
+            settings_container,
+            text="SENTINEL AI v1.0 Pro\nCybersecurity Protection Suite",
+            font=ctk.CTkFont(size=12, family="Roboto"),
+            text_color=COLORS["text_secondary"]
+        ).pack(pady=10)
+
+    # --- Page: Cloud Protection ---
+    def setup_cloud_protection(self):
+        frame = self.frames["cloud_protection"]
+        
+        ctk.CTkLabel(
+            frame, 
+            text="☁️ Cloud Protection", 
+            font=ctk.CTkFont(size=28, weight="bold", family="Roboto"),
+            text_color=COLORS["text_primary"]
+        ).pack(pady=(20, 30))
+        
+        cloud_container = ctk.CTkFrame(frame, fg_color=COLORS["bg_secondary"], corner_radius=15)
+        cloud_container.pack(pady=20, padx=60, fill="both", expand=True)
+        
+        # Status Indicator
+        status_frame = ctk.CTkFrame(cloud_container, fg_color="transparent")
+        status_frame.pack(pady=(20, 10), fill="x")
+        
+        self.lbl_cloud_status = ctk.CTkLabel(
+            status_frame,
+            text="STATUS: DISABLED",
+            font=ctk.CTkFont(size=14, weight="bold", family="Roboto"),
+            text_color=COLORS["text_secondary"]
+        )
+        self.lbl_cloud_status.pack()
+        
+        # Separator
+        ctk.CTkFrame(cloud_container, height=2, fg_color=COLORS["border"]).pack(pady=10, padx=20, fill="x")
+        
+        # Privacy Notice
+        privacy_frame = ctk.CTkFrame(cloud_container, fg_color=COLORS["bg_primary"], corner_radius=8)
+        privacy_frame.pack(pady=15, padx=30, fill="x")
         
         ctk.CTkLabel(
             privacy_frame,
-            text="🔒 Privacy-Safe: Only file hashes are sent to the cloud, never file content",
-            font=ctk.CTkFont(size=11, family="Roboto"),
+            text="🔒 Privacy-Safe: Only file hashes are sent to the cloud. We NEVER upload file content.",
+            font=ctk.CTkFont(size=12, family="Roboto"),
             text_color=COLORS["success"],
             wraplength=500
-        ).pack(pady=8, padx=10)
+        ).pack(pady=10, padx=15)
         
-        # Cloud scanning toggle
+        # Cloud Scanning Toggle
         self.sw_cloud_scan = ctk.CTkSwitch(
-            settings_container, 
-            text="☁️ Enable Cloud Reputation Scanning (Optional)",
-            font=ctk.CTkFont(size=14, family="Roboto"),
+            cloud_container, 
+            text="Enable Cloud Reputation Scanning",
+            font=ctk.CTkFont(size=15, weight="bold", family="Roboto"),
             progress_color=COLORS["accent"],
             command=self.toggle_cloud_scan
         )
-        self.sw_cloud_scan.pack(pady=10, padx=30, anchor="w")
+        self.sw_cloud_scan.pack(pady=20, padx=30, anchor="w")
         
-        # API Key input
-        api_key_frame = ctk.CTkFrame(settings_container, fg_color="transparent")
-        api_key_frame.pack(pady=10, padx=30, fill="x")
+        # API Key Section
+        ctk.CTkLabel(
+            cloud_container, 
+            text="Configuration",
+            font=ctk.CTkFont(size=16, weight="bold", family="Roboto")
+        ).pack(pady=(10, 10), anchor="w", padx=30)
+        
+        api_key_frame = ctk.CTkFrame(cloud_container, fg_color="transparent")
+        api_key_frame.pack(pady=5, padx=30, fill="x")
         
         ctk.CTkLabel(
             api_key_frame,
@@ -763,7 +810,7 @@ class AntivirusApp(ctk.CTk):
         
         self.entry_api_key = ctk.CTkEntry(
             api_input_frame,
-            placeholder_text="Enter VirusTotal API Key (get from virustotal.com)",
+            placeholder_text="Enter VirusTotal API Key",
             width=400,
             height=35,
             font=ctk.CTkFont(size=12, family="Roboto"),
@@ -785,26 +832,11 @@ class AntivirusApp(ctk.CTk):
         
         # Info label
         ctk.CTkLabel(
-            settings_container,
-            text="Note: Free API allows 4 requests/minute. Results are cached for 24 hours.",
+            cloud_container,
+            text="ℹ️ Free API Limit: 4 requests/minute. Results are cached for 24 hours.",
             font=ctk.CTkFont(size=11, family="Roboto"),
-            text_color=COLORS["text_secondary"],
-            wraplength=500
-        ).pack(pady=(5, 10), padx=30)
-        
-        # About Section
-        ctk.CTkLabel(
-            settings_container, 
-            text="About",
-            font=ctk.CTkFont(size=16, weight="bold", family="Roboto")
-        ).pack(pady=(30, 15))
-        
-        ctk.CTkLabel(
-            settings_container,
-            text="SENTINEL AI v1.0 Pro\nCybersecurity Protection Suite",
-            font=ctk.CTkFont(size=12, family="Roboto"),
             text_color=COLORS["text_secondary"]
-        ).pack(pady=10)
+        ).pack(pady=(10, 20), padx=30, anchor="w")
 
 
     # --- Page: Realtime ---
@@ -1186,6 +1218,10 @@ class AntivirusApp(ctk.CTk):
             self.status_canvas.itemconfig(self.status_circle, fill=COLORS["danger"])
             self.lbl_status_text.configure(text="THREAT FOUND", text_color=COLORS["danger"])
             
+            # Notify
+            self.notification_manager.notify_malware_detected(fname)
+            self.notification_manager.notify_scan_complete("malware", fname)
+            
         elif is_suspicious:
             # SUSPICIOUS FILE
             self.result_card.configure(border_color=COLORS["warning"])
@@ -1264,6 +1300,9 @@ class AntivirusApp(ctk.CTk):
             # Dashboard Indicator Green
             self.status_canvas.itemconfig(self.status_circle, fill=COLORS["success"])
             self.lbl_status_text.configure(text="SYSTEM SECURE", text_color=COLORS["success"])
+            
+            # Notify
+            self.notification_manager.notify_scan_complete("clean", fname)
 
     def action_quarantine(self):
         """Quarantine the currently scanned threat"""
@@ -1276,6 +1315,9 @@ class AntivirusApp(ctk.CTk):
                 text_color=COLORS["success"]
             )
             self.btn_action_quarantine.pack_forget()
+            
+            # Notify
+            self.notification_manager.notify_quarantined(os.path.basename(self.current_threat_path))
             
             # Update status
             self.status_canvas.itemconfig(self.status_circle, fill=COLORS["warning"])
@@ -1322,7 +1364,10 @@ class AntivirusApp(ctk.CTk):
         enabled = self.sw_cloud_scan.get() == 1
         self.scanner.cloud_checker.set_enabled(enabled)
         
-        status = "enabled" if enabled else "disabled"
+        status = "ENABLED" if enabled else "DISABLED"
+        color = COLORS["success"] if enabled else COLORS["text_secondary"]
+        self.lbl_cloud_status.configure(text=f"STATUS: {status}", text_color=color)
+        
         print(f"[*] Cloud scanning {status}")
     
     def save_api_key(self):
@@ -1341,13 +1386,21 @@ class AntivirusApp(ctk.CTk):
         else:
             print("[!] No API key entered")
     
+    def toggle_notifications(self):
+        """Toggle notifications on/off"""
+        is_enabled = self.sw_notify.get() == 1
+        self.notification_manager.set_enabled(is_enabled)
+        print(f"[*] Notifications set to: {is_enabled}")
+
     def load_cloud_settings(self):
         """Load cloud scanning settings on startup"""
         # Load cloud enabled state
         if self.scanner.cloud_checker.is_enabled():
             self.sw_cloud_scan.select()
+            self.lbl_cloud_status.configure(text="STATUS: ENABLED", text_color=COLORS["success"])
         else:
             self.sw_cloud_scan.deselect()
+            self.lbl_cloud_status.configure(text="STATUS: DISABLED", text_color=COLORS["text_secondary"])
         
         # Load API key (for display purposes, masked)
         api_key = self.scanner.cloud_checker.get_api_key()
@@ -1397,6 +1450,9 @@ class AntivirusApp(ctk.CTk):
             text=f"REAL-TIME THREAT: {fname}", 
             text_color=COLORS["danger"]
         )
+        
+        # Notify
+        self.notification_manager.notify_realtime_threat(fname)
         
         # Show details in scan page
         self.display_result(result)

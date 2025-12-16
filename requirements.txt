@@ -10,4 +10,5 @@ lief
 lightgbm
 pyarrow
 fastparquet
+win10toast  # Windows desktop notifications
 requests

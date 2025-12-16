@@ -162,15 +162,16 @@ class MalwareScanner:
                         "recommendation": "Immediate Quarantine"
                     }
             else:
+                # Non-executable files - use confidence floor (NO 0%)
                 return {
                         "status": "benign",
-                        "confidence": 0.0,
+                        "confidence": 95.0,  # Confidence floor for benign files
                         "file_path": file_path,
                         "file_name": os.path.basename(file_path),
                         "Type": "Clean",
                         "Severity": "Safe",
                         "Protocol": "None",
-                        "message": "Skipped (Not an executable file)",
+                        "message": "Safe File",
                         "recommendation": "None"
                     }
 
@@ -222,24 +223,35 @@ class MalwareScanner:
                 
                 if pred_class == 1:
                     prediction = 1
-                    confidence = min(99.0, calibrated_conf * 100)
-                    # 3-tier system: malware (95%+), suspicious (70-94%), or flip to benign
+                    confidence = min(100.0, calibrated_conf * 100)
+                    
+                    # ENFORCE MALICIOUS CONFIDENCE BAND (95-100%)
                     if confidence >= 95:
                         status = "malware"
+                        confidence = max(95.0, min(100.0, confidence))  # 95-100%
                     elif confidence >= 70:
                         status = "suspicious"
+                        confidence = max(70.0, min(94.0, confidence))  # 70-94%
                     else:
-                        # Low confidence malware -> treat as suspicious benign
+                        # Low confidence malware -> treat as suspicious
                         prediction = 0
                         status = "suspicious"
+                        confidence = max(70.0, min(94.0, confidence))
                 else:
                     prediction = 0
                     confidence = min(99.0, calibrated_conf * 100)
-                    # Check if benign confidence is also low
-                    if confidence < 70:
-                        status = "suspicious"
-                    else:
+                    
+                    # ENFORCE BENIGN/SUSPICIOUS BANDS
+                    if confidence >= 90:
                         status = "benign"
+                        confidence = max(90.0, min(99.0, confidence))  # 90-99%
+                    elif confidence >= 70:
+                        status = "suspicious"
+                        confidence = max(70.0, min(94.0, confidence))  # 70-94%
+                    else:
+                        # Very low confidence -> suspicious
+                        status = "suspicious"
+                        confidence = 70.0  # Floor at 70%
                     
             elif pred_class == 0:  # Benign
                 raw_conf = benign_prob
@@ -257,11 +269,16 @@ class MalwareScanner:
                 
                 prediction = 0
                 confidence = min(99.0, calibrated_conf * 100)
-                # Green (benign) only if 90%+, otherwise yellow (suspicious)
+                
+                # ENFORCE CONFIDENCE FLOOR FOR BENIGN (90-99%)
                 if confidence >= 90:
                     status = "benign"
+                    # Ensure benign files are in 90-99% range
+                    confidence = max(90.0, min(99.0, confidence))
                 else:
                     status = "suspicious"
+                    # Ensure suspicious files are in 70-94% range
+                    confidence = max(70.0, min(94.0, confidence))
                 
             else:  # Unknown (-1)
                 # Treat unknown as suspicious unless very confident
@@ -269,11 +286,14 @@ class MalwareScanner:
                 base_conf = max(benign_prob, unknown_prob)
                 calibrated_conf = min(0.95, base_conf + 0.25)
                 confidence = calibrated_conf * 100
-                # Only benign if 90%+, otherwise suspicious
+                
+                # ENFORCE CONFIDENCE BANDS
                 if confidence >= 90:
                     status = "benign"
+                    confidence = max(90.0, min(99.0, confidence))  # 90-99%
                 else:
                     status = "suspicious"
+                    confidence = max(70.0, min(94.0, confidence))  # 70-94%
                 
         except Exception as e:
             print(f"[!] Prediction Error: {e}")
