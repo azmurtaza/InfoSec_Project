@@ -6,6 +6,7 @@ import numpy as np
 import feature_extraction
 
 import hashlib
+from cloud_reputation import CloudReputationChecker
 
 class MalwareScanner:
     def __init__(self):
@@ -55,7 +56,10 @@ class MalwareScanner:
         from ember_adapter import EmberAdapter
         self.adapter = EmberAdapter()
         
-        print("[+] Model and Ember Adapter loaded successfully!")
+        # Setup Cloud Reputation Checker
+        self.cloud_checker = CloudReputationChecker()
+        
+        print("[+] Model, Ember Adapter, and Cloud Reputation Checker loaded successfully!")
 
     def calculate_file_hash(self, file_path):
         """Calculates SHA256 hash of a file."""
@@ -274,6 +278,46 @@ class MalwareScanner:
         except Exception as e:
             print(f"[!] Prediction Error: {e}")
             return "Error: Prediction failed."
+        
+        # 6. Cloud Reputation Check (FALLBACK ONLY - Priority 3)
+        # Only query cloud if:
+        # - Cloud scanning is enabled
+        # - ML confidence is ambiguous (suspicious range)
+        # - Not already confirmed by signatures
+        cloud_analysis = None
+        cloud_verdict = None
+        
+        if self.cloud_checker.is_enabled() and status == "suspicious":
+            # Only use cloud for ambiguous cases
+            print(f"[*] ML confidence ambiguous, querying cloud reputation...")
+            cloud_result = self.cloud_checker.query_cloud_reputation(file_hash)
+            
+            if cloud_result and 'error' not in cloud_result:
+                cloud_analysis = f"{cloud_result['engines_flagged']} / {cloud_result['total_engines']} engines flagged"
+                cloud_verdict = cloud_result['verdict']
+                
+                # Cloud results influence confidence for ambiguous cases
+                # But NEVER override signature-based detection
+                if cloud_verdict == 'Malicious' and cloud_result['engines_flagged'] >= 5:
+                    # Multiple engines flagged - boost to malware
+                    status = "malware"
+                    confidence = min(99.0, confidence + 10.0)  # Boost confidence
+                    print(f"[*] Cloud verdict: Malicious ({cloud_result['engines_flagged']} engines) - Upgraded to malware")
+                elif cloud_verdict == 'Suspicious':
+                    # Keep as suspicious, slight confidence boost
+                    confidence = min(94.0, confidence + 5.0)
+                    print(f"[*] Cloud verdict: Suspicious ({cloud_result['engines_flagged']} engines)")
+                elif cloud_verdict == 'Clean':
+                    # Cloud says clean - downgrade to benign if low local confidence
+                    if confidence < 75:
+                        status = "benign"
+                        confidence = min(99.0, 85.0)
+                        print(f"[*] Cloud verdict: Clean - Downgraded to benign")
+            elif cloud_result and 'error' in cloud_result:
+                # Cloud query failed - log but continue with local detection
+                print(f"[*] Cloud query failed: {cloud_result['error']}")
+                cloud_analysis = f"Error: {cloud_result['error']}"
+                cloud_verdict = "Unknown"
 
         # 5. Result Construction
         # 3-tier system: benign (green), suspicious (yellow), malware (red)
@@ -295,7 +339,9 @@ class MalwareScanner:
             "Severity": threat_details['Severity'],
             "Protocol": threat_details['Protocol'],
             "message": f"{threat_details['Type']} Detected! ({confidence:.2f}%)" if gui_status == "malware" else "Safe File",
-            "recommendation": threat_details['Protocol'] 
+            "recommendation": threat_details['Protocol'],
+            "cloud_analysis": cloud_analysis,
+            "cloud_verdict": cloud_verdict
         }
         
         return result

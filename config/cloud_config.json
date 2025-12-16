@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "api_key": "e2132b6783f382c73dbf1ac896ab04767e254367c0ad842f2576c9ccb8a32687",
+  "cache_duration_hours": 24,
+  "timeout_seconds": 10,
+  "max_retries": 2
+}

@@ -10,3 +10,4 @@ lief
 lightgbm
 pyarrow
 fastparquet
+requests

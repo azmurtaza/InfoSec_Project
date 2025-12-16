@@ -76,6 +76,9 @@ class AntivirusApp(ctk.CTk):
 
         # Start on Dashboard
         self.show_frame("dashboard")
+        
+        # Load cloud scanning settings
+        self.load_cloud_settings()
 
     def _create_sidebar(self):
         """Create professional sidebar with branding and navigation"""
@@ -393,6 +396,37 @@ class AntivirusApp(ctk.CTk):
         )
         self.btn_action_quarantine.pack(pady=(10, 20), padx=40, fill="x")
         self.btn_action_quarantine.pack_forget()
+        
+        # Cloud Analysis Section (initially hidden)
+        self.cloud_frame = ctk.CTkFrame(
+            self.result_card,
+            fg_color=COLORS["bg_primary"],
+            corner_radius=8,
+            border_width=1,
+            border_color=COLORS["border"]
+        )
+        
+        ctk.CTkLabel(
+            self.cloud_frame,
+            text="☁️ Cloud Analysis",
+            font=ctk.CTkFont(size=14, weight="bold", family="Roboto"),
+            text_color=COLORS["accent"]
+        ).pack(pady=(10, 5))
+        
+        self.lbl_cloud_analysis = ctk.CTkLabel(
+            self.cloud_frame,
+            text="",
+            font=ctk.CTkFont(size=13, family="Roboto"),
+            text_color=COLORS["text_secondary"]
+        )
+        self.lbl_cloud_analysis.pack(pady=5)
+        
+        self.lbl_cloud_verdict = ctk.CTkLabel(
+            self.cloud_frame,
+            text="",
+            font=ctk.CTkFont(size=13, weight="bold", family="Roboto")
+        )
+        self.lbl_cloud_verdict.pack(pady=(0, 10))
 
     # --- Page: Quarantine ---
     def setup_quarantine(self):
@@ -683,6 +717,80 @@ class AntivirusApp(ctk.CTk):
             progress_color=COLORS["accent"]
         )
         self.sw_auto_q.pack(pady=10, padx=30, anchor="w")
+        
+        # Cloud Scanning Section
+        ctk.CTkLabel(
+            settings_container, 
+            text="Cloud Reputation Scanning",
+            font=ctk.CTkFont(size=16, weight="bold", family="Roboto")
+        ).pack(pady=(30, 15))
+        
+        # Privacy notice
+        privacy_frame = ctk.CTkFrame(settings_container, fg_color=COLORS["bg_primary"], corner_radius=8)
+        privacy_frame.pack(pady=10, padx=30, fill="x")
+        
+        ctk.CTkLabel(
+            privacy_frame,
+            text="🔒 Privacy-Safe: Only file hashes are sent to the cloud, never file content",
+            font=ctk.CTkFont(size=11, family="Roboto"),
+            text_color=COLORS["success"],
+            wraplength=500
+        ).pack(pady=8, padx=10)
+        
+        # Cloud scanning toggle
+        self.sw_cloud_scan = ctk.CTkSwitch(
+            settings_container, 
+            text="☁️ Enable Cloud Reputation Scanning (Optional)",
+            font=ctk.CTkFont(size=14, family="Roboto"),
+            progress_color=COLORS["accent"],
+            command=self.toggle_cloud_scan
+        )
+        self.sw_cloud_scan.pack(pady=10, padx=30, anchor="w")
+        
+        # API Key input
+        api_key_frame = ctk.CTkFrame(settings_container, fg_color="transparent")
+        api_key_frame.pack(pady=10, padx=30, fill="x")
+        
+        ctk.CTkLabel(
+            api_key_frame,
+            text="VirusTotal API Key:",
+            font=ctk.CTkFont(size=13, family="Roboto"),
+            text_color=COLORS["text_secondary"]
+        ).pack(anchor="w", pady=(0, 5))
+        
+        api_input_frame = ctk.CTkFrame(api_key_frame, fg_color="transparent")
+        api_input_frame.pack(fill="x")
+        
+        self.entry_api_key = ctk.CTkEntry(
+            api_input_frame,
+            placeholder_text="Enter VirusTotal API Key (get from virustotal.com)",
+            width=400,
+            height=35,
+            font=ctk.CTkFont(size=12, family="Roboto"),
+            show="*"
+        )
+        self.entry_api_key.pack(side="left", padx=(0, 10))
+        
+        ctk.CTkButton(
+            api_input_frame,
+            text="Save Key",
+            width=100,
+            height=35,
+            font=ctk.CTkFont(size=12, family="Roboto"),
+            fg_color=COLORS["accent"],
+            hover_color="#1fa5d0",
+            corner_radius=8,
+            command=self.save_api_key
+        ).pack(side="left")
+        
+        # Info label
+        ctk.CTkLabel(
+            settings_container,
+            text="Note: Free API allows 4 requests/minute. Results are cached for 24 hours.",
+            font=ctk.CTkFont(size=11, family="Roboto"),
+            text_color=COLORS["text_secondary"],
+            wraplength=500
+        ).pack(pady=(5, 10), padx=30)
         
         # About Section
         ctk.CTkLabel(
@@ -1071,6 +1179,9 @@ class AntivirusApp(ctk.CTk):
             # Show Quarantine Button
             self.btn_action_quarantine.pack(pady=(10, 20), padx=40, fill="x")
             
+            # Show cloud analysis if available
+            self.display_cloud_analysis(result)
+            
             # Dashboard Indicator Red
             self.status_canvas.itemconfig(self.status_circle, fill=COLORS["danger"])
             self.lbl_status_text.configure(text="THREAT FOUND", text_color=COLORS["danger"])
@@ -1112,6 +1223,9 @@ class AntivirusApp(ctk.CTk):
             # Show Quarantine Button
             self.btn_action_quarantine.pack(pady=(10, 20), padx=40, fill="x")
             
+            # Show cloud analysis if available
+            self.display_cloud_analysis(result)
+            
             # Dashboard Indicator Yellow
             self.status_canvas.itemconfig(self.status_circle, fill=COLORS["warning"])
             self.lbl_status_text.configure(text="SUSPICIOUS FILE", text_color=COLORS["warning"])
@@ -1143,6 +1257,9 @@ class AntivirusApp(ctk.CTk):
             
             # Hide Quarantine Button
             self.btn_action_quarantine.pack_forget()
+            
+            # Show cloud analysis if available
+            self.display_cloud_analysis(result)
 
             # Dashboard Indicator Green
             self.status_canvas.itemconfig(self.status_circle, fill=COLORS["success"])
@@ -1170,6 +1287,72 @@ class AntivirusApp(ctk.CTk):
             # Hide the card
             self.result_card.pack_forget()
             self.current_threat_path = None
+    
+    def display_cloud_analysis(self, result):
+        """Display cloud analysis results if available"""
+        cloud_analysis = result.get("cloud_analysis")
+        cloud_verdict = result.get("cloud_verdict")
+        
+        if cloud_analysis and cloud_verdict:
+            # Show cloud frame
+            self.cloud_frame.pack(pady=10, padx=40, fill="x")
+            
+            # Update labels
+            self.lbl_cloud_analysis.configure(text=cloud_analysis)
+            
+            # Color code verdict
+            verdict_colors = {
+                "Malicious": COLORS["danger"],
+                "Suspicious": COLORS["warning"],
+                "Clean": COLORS["success"],
+                "Unknown": COLORS["text_secondary"]
+            }
+            verdict_color = verdict_colors.get(cloud_verdict, COLORS["text_secondary"])
+            
+            self.lbl_cloud_verdict.configure(
+                text=f"Verdict: {cloud_verdict}",
+                text_color=verdict_color
+            )
+        else:
+            # Hide cloud frame if no cloud data
+            self.cloud_frame.pack_forget()
+    
+    def toggle_cloud_scan(self):
+        """Toggle cloud scanning on/off"""
+        enabled = self.sw_cloud_scan.get() == 1
+        self.scanner.cloud_checker.set_enabled(enabled)
+        
+        status = "enabled" if enabled else "disabled"
+        print(f"[*] Cloud scanning {status}")
+    
+    def save_api_key(self):
+        """Save VirusTotal API key"""
+        api_key = self.entry_api_key.get().strip()
+        
+        if api_key:
+            self.scanner.cloud_checker.set_api_key(api_key)
+            print("[+] API key saved successfully")
+            
+            # Visual feedback
+            self.entry_api_key.configure(placeholder_text="API Key saved ✓")
+            self.after(2000, lambda: self.entry_api_key.configure(
+                placeholder_text="Enter VirusTotal API Key (get from virustotal.com)"
+            ))
+        else:
+            print("[!] No API key entered")
+    
+    def load_cloud_settings(self):
+        """Load cloud scanning settings on startup"""
+        # Load cloud enabled state
+        if self.scanner.cloud_checker.is_enabled():
+            self.sw_cloud_scan.select()
+        else:
+            self.sw_cloud_scan.deselect()
+        
+        # Load API key (for display purposes, masked)
+        api_key = self.scanner.cloud_checker.get_api_key()
+        if api_key:
+            self.entry_api_key.insert(0, api_key)
 
     def toggle_realtime(self):
         """Toggle real-time protection on/off"""
