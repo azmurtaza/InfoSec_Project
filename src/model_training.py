@@ -8,7 +8,7 @@ import argparse
 import lightgbm as lgb
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
-def train_model(use_full_dataset=False, max_samples=400000):
+def train_model(use_full_dataset=False, max_samples=400000, device='cpu', gpu_platform_id=0, gpu_device_id=0):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     data_dir = os.path.join(script_dir, '..', 'data')
     models_dir = os.path.join(script_dir, '..', 'models')
@@ -167,13 +167,17 @@ def train_model(use_full_dataset=False, max_samples=400000):
     print("[*] Training LightGBM Model with GPU acceleration (RTX 3050)...")
     print("="*60)
     
-    # Optimized configuration for full dataset with GPU
-    # Platform 1 is usually NVIDIA on dual-GPU systems
+    # Optimized configuration
+    # Device selection based on arguments
+    print(f"[*] Training Device: {device.upper()}")
+    if device == 'gpu':
+        print(f"[*] GPU Platform ID: {gpu_platform_id} | Device ID: {gpu_device_id}")
+    
     clf = lgb.LGBMClassifier(
         boosting_type='gbdt',
-        device='gpu',  # GPU acceleration
-        gpu_platform_id=1,  # Try Platform 1 for NVIDIA
-        gpu_device_id=0,
+        device=device,
+        gpu_platform_id=gpu_platform_id if device == 'gpu' else -1,
+        gpu_device_id=gpu_device_id if device == 'gpu' else -1,
         n_estimators=1000,
         learning_rate=0.05,
         num_leaves=64,       # Reduced to 64 (standard good value)
@@ -276,6 +280,14 @@ if __name__ == "__main__":
     parser.add_argument('--max-samples', type=int, default=1000000,
                         help='Maximum samples to use (default: 1,000,000)')
     
+    # Default to CPU for safety, allow simple override
+    parser.add_argument('--device', type=str, default='cpu', choices=['cpu', 'gpu'],
+                        help='Training device: cpu or gpu (default: cpu)')
+    parser.add_argument('--platform-id', type=int, default=0,
+                        help='GPU Platform ID (default: 0). Nvidia is often 1, AMD often 0.')
+    parser.add_argument('--device-id', type=int, default=0,
+                        help='GPU Device ID (default: 0)')
+    
     args = parser.parse_args()
     
     print("\n" + "="*60)
@@ -292,4 +304,10 @@ if __name__ == "__main__":
     
     print("="*60 + "\n")
     
-    train_model(use_full_dataset=use_full, max_samples=args.max_samples)
+    train_model(
+        use_full_dataset=use_full, 
+        max_samples=args.max_samples,
+        device=args.device,
+        gpu_platform_id=args.platform_id,
+        gpu_device_id=args.device_id
+    )
