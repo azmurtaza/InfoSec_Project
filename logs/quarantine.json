@@ -135,6 +135,36 @@
         "original_path": "C:/Users/husna/Downloads/infosec/my code backup/real_test.exe",
         "timestamp": "2025-12-19T21:06:32.749496",
         "threat_type": "Suspicious Executable (Failed Parse)",
-        "status": "Quarantined"
+        "status": "Missing"
+    },
+    {
+        "original_path": "C:\\Users\\husna\\Downloads\\infosec\\InfoSec_Project\\test_q_bug.txt",
+        "timestamp": "2025-12-19T21:09:25.866158",
+        "threat_type": "Test Threat",
+        "status": "Deleted"
+    },
+    {
+        "original_path": "C:\\Users\\husna\\Downloads\\infosec\\InfoSec_Project\\TEST_CASE_BUG.TXT",
+        "timestamp": "2025-12-19T21:09:56.933671",
+        "threat_type": "Test Threat",
+        "status": "Deleted"
+    },
+    {
+        "original_path": "RestoredFromVault\\test_case_bug.txt",
+        "timestamp": "2025-12-19T21:09:56.978925",
+        "threat_type": "Unknown (Orphan)",
+        "status": "Missing"
+    },
+    {
+        "original_path": "C:\\Users\\husna\\Downloads\\infosec\\InfoSec_Project\\TEST_CASE_BUG.TXT",
+        "timestamp": "2025-12-19T21:12:08.672467",
+        "threat_type": "Test Threat",
+        "status": "Deleted"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-19T21:22:28.741361",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
     }
 ]

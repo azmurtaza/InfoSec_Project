@@ -2,6 +2,7 @@ import customtkinter as ctk
 import os
 import threading
 import time
+import json
 from tkinter import filedialog
 from scanner_engine import MalwareScanner
 from realtime_protection import RealTimeProtector
@@ -659,7 +660,7 @@ class AntivirusApp(ctk.CTk):
         """Restore a quarantined file"""
         path = entry.get("original_path")
         if path:
-            msg = restore_file(path)
+            msg = unlock_file(path)
             print(msg)
             self.after(200, self.load_quarantine_list)
             

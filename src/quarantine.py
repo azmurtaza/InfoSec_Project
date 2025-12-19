@@ -97,19 +97,22 @@ def sync_quarantine_vault():
         logs = []
         
     # Map logs by locked filename (derived from original path)
+    # Use lowercase keys for case-insensitive matching on Windows
     log_map = {}
     for entry in logs:
         # Reconstruct locked name: basename + .LOCKED
         locked_name = os.path.basename(entry['original_path']) + ".LOCKED"
-        log_map[locked_name] = entry
+        log_map[locked_name.lower()] = entry
 
     # 1. Scan Vault for unlogged files
     vault_files = os.listdir(QUARANTINE_DIR)
+    vault_files_lower = {f.lower(): f for f in vault_files}  # Case-insensitive lookup
+    
     for fname in vault_files:
         if not fname.endswith(".LOCKED"):
             continue
             
-        if fname not in log_map:
+        if fname.lower() not in log_map:
             # Found orphan file, add to log
             original_name = fname.replace(".LOCKED", "")
             # We don't know the full original path, so we guess/placeholder
@@ -126,16 +129,16 @@ def sync_quarantine_vault():
             # File exists and is in log. Ensure status is Quarantined if it was marked otherwise?
             # User might have manually put it back? 
             # For now, trust the log unless it says 'Deleted' but file is there.
-            entry = log_map[fname]
+            entry = log_map[fname.lower()]
             if entry['status'] in ['Deleted', 'Restored']:
                 # Weird state: Log says gone, but file is here. Resurrect it.
                 entry['status'] = "Quarantined"
 
-    # 2. Check for missing files
+    # 2. Check for missing files (case-insensitive)
     for entry in logs:
         if entry['status'] == "Quarantined":
             locked_name = os.path.basename(entry['original_path']) + ".LOCKED"
-            if locked_name not in vault_files:
+            if locked_name.lower() not in vault_files_lower:
                 entry['status'] = "Missing"
 
     # Save
