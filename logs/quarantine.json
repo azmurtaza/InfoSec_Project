@@ -130,5 +130,11 @@
         "timestamp": "2025-12-14T17:37:02.738888",
         "threat_type": "Suspicious Executable",
         "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/real_test.exe",
+        "timestamp": "2025-12-19T21:06:32.749496",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Quarantined"
     }
 ]

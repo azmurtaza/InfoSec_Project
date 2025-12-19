@@ -140,7 +140,7 @@ class MalwareScanner:
                      print(f"[*] Extraction failed but valid signature found for {os.path.basename(file_path)}.")
                      return {
                         "status": "benign",
-                        "confidence": 0.0,
+                        "confidence": 99.0,
                         "file_path": file_path,
                         "file_name": os.path.basename(file_path),
                         "Type": "Clean (Signed/Failed Parse)",
@@ -310,7 +310,10 @@ class MalwareScanner:
         if self.cloud_checker.is_enabled() and status == "suspicious":
             # Only use cloud for ambiguous cases
             print(f"[*] ML confidence ambiguous, querying cloud reputation...")
+            import time
+            start_time = time.time()
             cloud_result = self.cloud_checker.query_cloud_reputation(file_hash)
+            print(f"[*] Cloud query completed in {time.time() - start_time:.2f}s")
             
             if cloud_result and 'error' not in cloud_result:
                 cloud_analysis = f"{cloud_result['engines_flagged']} / {cloud_result['total_engines']} engines flagged"

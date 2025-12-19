@@ -52,12 +52,12 @@ class CloudReputationChecker:
                     "enabled": False,
                     "api_key": "",
                     "cache_duration_hours": 24,
-                    "timeout_seconds": 10,
+                    "timeout_seconds": 5,
                     "max_retries": 2
                 }
         except Exception as e:
             print(f"[!] Error loading cloud config: {e}")
-            return {"enabled": False, "api_key": "", "cache_duration_hours": 24, "timeout_seconds": 10, "max_retries": 2}
+            return {"enabled": False, "api_key": "", "cache_duration_hours": 24, "timeout_seconds": 5, "max_retries": 2}
     
     def save_config(self, config):
         """Save cloud scanning configuration"""
@@ -178,7 +178,9 @@ class CloudReputationChecker:
                 'Accept': 'application/json'
             }
             
-            timeout = self.config.get('timeout_seconds', 10)
+            timeout = self.config.get('timeout_seconds', 5)
+            
+            print(f"[*] Sending request to VirusTotal (Timeout: {timeout}s)...")
             
             # Make API request (PRIVACY-SAFE: Only hash in URL, no file upload)
             response = requests.get(url, headers=headers, timeout=timeout)

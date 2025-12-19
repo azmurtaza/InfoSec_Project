@@ -239,7 +239,7 @@ class TestCloudIntegration:
         self.log_result(
             "Priority Order Implemented",
             True,  # Verified in scanner_engine.py code
-            "Signatures → ML → Cloud (fallback)"
+            "Signatures -> ML -> Cloud (fallback)"
         )
         
         # Cloud only queries for suspicious status
