@@ -854,6 +854,44 @@ class AntivirusApp(ctk.CTk):
         rt_container = ctk.CTkFrame(frame, fg_color=COLORS["bg_secondary"], corner_radius=15)
         rt_container.pack(pady=20, padx=60, fill="both", expand=True)
         
+        # Folder Selection Section (similar to Quick Scan)
+        select_frame = ctk.CTkFrame(rt_container, fg_color=COLORS["bg_primary"], corner_radius=10)
+        select_frame.pack(pady=15, padx=30, fill="x")
+        
+        ctk.CTkLabel(
+            select_frame,
+            text="📂 Select Folder to Monitor",
+            font=ctk.CTkFont(size=14, weight="bold", family="Roboto"),
+            text_color=COLORS["text_primary"]
+        ).pack(pady=(15, 10))
+        
+        self.btn_select_rt_folder = ctk.CTkButton(
+            select_frame, 
+            text="📁 Choose Folder", 
+            height=40, 
+            font=ctk.CTkFont(size=14, weight="bold", family="Roboto"),
+            fg_color=COLORS["accent"],
+            hover_color="#1fa5d0",
+            corner_radius=8,
+            command=self.select_realtime_folder
+        )
+        self.btn_select_rt_folder.pack(pady=10, padx=20)
+        
+        # Initialize with Downloads folder as default
+        self.realtime_folder_path = os.path.join(os.path.expanduser("~"), "Downloads")
+        
+        self.lbl_rt_folder = ctk.CTkLabel(
+            select_frame, 
+            text=f"Selected: {self.realtime_folder_path}", 
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(size=12, family="Roboto"),
+            wraplength=600
+        )
+        self.lbl_rt_folder.pack(pady=(0, 15), padx=20)
+        
+        # Separator
+        ctk.CTkFrame(rt_container, height=2, fg_color=COLORS["border"]).pack(pady=15, padx=30, fill="x")
+        
         # Center container for status
         center_frame = ctk.CTkFrame(rt_container, fg_color="transparent")
         center_frame.pack(expand=True, fill="both")
@@ -866,7 +904,7 @@ class AntivirusApp(ctk.CTk):
             bg=COLORS["bg_secondary"], 
             highlightthickness=0
         )
-        self.rt_status_canvas.pack(pady=(30, 20))
+        self.rt_status_canvas.pack(pady=(20, 20))
         self.rt_status_circle = self.rt_status_canvas.create_oval(
             15, 15, 135, 135, 
             fill=COLORS["border"], 
@@ -892,10 +930,11 @@ class AntivirusApp(ctk.CTk):
         
         ctk.CTkLabel(
             center_frame, 
-            text="📂 Monitored Folder: Downloads", 
+            text="⚡ Monitors all files and subfolders recursively", 
             text_color=COLORS["text_secondary"],
-            font=ctk.CTkFont(size=13, family="Roboto")
+            font=ctk.CTkFont(size=12, family="Roboto", slant="italic")
         ).pack(pady=(5, 20))
+
 
     # --- Page: Quick Scan ---
     def setup_quick_scan(self):
@@ -1408,18 +1447,57 @@ class AntivirusApp(ctk.CTk):
         if api_key:
             self.entry_api_key.insert(0, api_key)
 
+    def select_realtime_folder(self):
+        """Select folder for realtime protection monitoring"""
+        folder_selected = filedialog.askdirectory()
+        if folder_selected:
+            self.realtime_folder_path = folder_selected
+            self.lbl_rt_folder.configure(
+                text=f"Selected: {self.realtime_folder_path}", 
+                text_color=COLORS["text_primary"]
+            )
+            
+            # Update the protector's watch path
+            success = self.protector.set_watch_path(self.realtime_folder_path)
+            if success:
+                print(f"[+] Realtime protection folder updated to: {self.realtime_folder_path}")
+            else:
+                print(f"[!] Failed to update realtime protection folder")
+    
     def toggle_realtime(self):
         """Toggle real-time protection on/off"""
         if self.sw_realtime.get() == 1:
-            self.protector.start()
-            self.lbl_rt_status.configure(
-                text="PROTECTING", 
-                text_color=COLORS["success"]
-            )
-            self.rt_status_canvas.itemconfig(
-                self.rt_status_circle, 
-                fill=COLORS["success"]
-            )
+            # Validate folder exists before starting
+            if not os.path.exists(self.realtime_folder_path):
+                self.lbl_rt_status.configure(
+                    text="ERROR: Invalid Folder", 
+                    text_color=COLORS["danger"]
+                )
+                self.sw_realtime.deselect()
+                print(f"[!] Cannot start protection: folder does not exist: {self.realtime_folder_path}")
+                return
+            
+            # Set the watch path and start protection
+            self.protector.set_watch_path(self.realtime_folder_path)
+            success = self.protector.start()
+            
+            if success:
+                self.lbl_rt_status.configure(
+                    text="PROTECTING", 
+                    text_color=COLORS["success"]
+                )
+                self.rt_status_canvas.itemconfig(
+                    self.rt_status_circle, 
+                    fill=COLORS["success"]
+                )
+                print(f"[+] Realtime protection started for: {self.realtime_folder_path}")
+            else:
+                self.lbl_rt_status.configure(
+                    text="ERROR: Failed to Start", 
+                    text_color=COLORS["danger"]
+                )
+                self.sw_realtime.deselect()
+                print(f"[!] Failed to start realtime protection")
         else:
             self.protector.stop()
             self.lbl_rt_status.configure(

@@ -45,24 +45,29 @@ class RealTimeHandler(FileSystemEventHandler):
             print(f"[RealTime] Error scanning {file_path}: {e}")
 
 class RealTimeProtector:
-    def __init__(self, threat_callback, scanner=None):
+    def __init__(self, threat_callback, scanner=None, initial_path=None):
         self.observer = Observer()
         self.handler = RealTimeHandler(threat_callback, scanner)
-        # Default to Downloads for safety/demo
-        self.watch_path = os.path.join(os.path.expanduser("~"), "Downloads")
+        # Default to Downloads, but allow custom initial path
+        if initial_path and os.path.exists(initial_path):
+            self.watch_path = initial_path
+        else:
+            self.watch_path = os.path.join(os.path.expanduser("~"), "Downloads")
         self.is_running = False
 
     def start(self):
         if not self.is_running:
             if not os.path.exists(self.watch_path):
                 print(f"[RealTime] Watch path does not exist: {self.watch_path}")
-                return
+                return False
 
             self.observer = Observer() # Re-create observer on restart
-            self.observer.schedule(self.handler, self.watch_path, recursive=False)
+            # IMPORTANT: recursive=True enables monitoring of all subfolders
+            self.observer.schedule(self.handler, self.watch_path, recursive=True)
             self.observer.start()
             self.is_running = True
-            print(f"[RealTime] Protection Started. Watching: {self.watch_path}")
+            print(f"[RealTime] Protection Started. Watching: {self.watch_path} (recursive)")
+            return True
 
     def stop(self):
         if self.is_running:
@@ -70,3 +75,32 @@ class RealTimeProtector:
             self.observer.join()
             self.is_running = False
             print("[RealTime] Protection Stopped.")
+    
+    def set_watch_path(self, path):
+        """Change the monitored folder path. Restarts protection if currently running."""
+        if not os.path.exists(path):
+            print(f"[RealTime] Invalid path: {path}")
+            return False
+        
+        if not os.path.isdir(path):
+            print(f"[RealTime] Path is not a directory: {path}")
+            return False
+        
+        # Stop current monitoring if running
+        was_running = self.is_running
+        if was_running:
+            self.stop()
+        
+        # Update path
+        self.watch_path = path
+        print(f"[RealTime] Watch path updated to: {self.watch_path}")
+        
+        # Restart if it was running before
+        if was_running:
+            return self.start()
+        
+        return True
+    
+    def get_watch_path(self):
+        """Get the current monitored folder path."""
+        return self.watch_path

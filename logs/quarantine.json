@@ -172,5 +172,17 @@
         "timestamp": "2025-12-20T22:54:13.717269",
         "threat_type": "Suspicious Executable (Failed Parse)",
         "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads\\installers\\eicar.exe",
+        "timestamp": "2025-12-20T23:06:57.472668",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/fuckass.exe",
+        "timestamp": "2025-12-20T23:08:29.966223",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
     }
 ]
