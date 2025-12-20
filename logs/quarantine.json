@@ -184,5 +184,29 @@
         "timestamp": "2025-12-20T23:08:29.966223",
         "threat_type": "Suspicious Executable (Failed Parse)",
         "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/fuckass.exe",
+        "timestamp": "2025-12-20T23:27:32.072003",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup\\cpu-z_2.16-en.exe",
+        "timestamp": "2025-12-20T23:31:25.429929",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup\\fuckass.exe",
+        "timestamp": "2025-12-20T23:31:25.756693",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup\\malw.exe",
+        "timestamp": "2025-12-20T23:31:25.996536",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
     }
 ]

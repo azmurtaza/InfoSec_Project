@@ -4,6 +4,7 @@ import threading
 import time
 import json
 from tkinter import filedialog
+from PIL import Image
 from scanner_engine import MalwareScanner
 from realtime_protection import RealTimeProtector
 from quarantine import quarantine_file, sync_quarantine_vault, restore_file as unlock_file, delete_quarantined_file, get_quarantined_files
@@ -31,7 +32,7 @@ class AntivirusApp(ctk.CTk):
         super().__init__()
 
         # Window Setup
-        self.title("SENTINEL AI - Advanced Threat Protection")
+        self.title("Peacemaker AI - Keeping the Peace is Worth Any Price")
         self.geometry("1100x700")
         self.configure(fg_color=COLORS["bg_primary"])
         self.grid_columnconfigure(1, weight=1)
@@ -90,25 +91,64 @@ class AntivirusApp(ctk.CTk):
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         self.sidebar_frame.grid_propagate(False)
 
-        # Brand Header
+        # Brand Header with Helmet Logo
         brand_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
         brand_frame.grid(row=0, column=0, padx=20, pady=(30, 10), sticky="ew")
         
-        self.logo_label = ctk.CTkLabel(
-            brand_frame, 
-            text="⚡ SENTINEL AI", 
-            font=ctk.CTkFont(size=22, weight="bold", family="Roboto"),
-            text_color=COLORS["accent"]
-        )
-        self.logo_label.pack()
-        
-        self.version_label = ctk.CTkLabel(
-            brand_frame, 
-            text="v1.0 Pro", 
-            font=ctk.CTkFont(size=11),
-            text_color=COLORS["text_secondary"]
-        )
-        self.version_label.pack()
+        # Load Peacemaker helmet image
+        try:
+            helmet_path = os.path.join(os.path.dirname(__file__), "..", "assets", "peacemaker_helmet.png")
+            helmet_img = Image.open(helmet_path)
+            self.helmet_image = ctk.CTkImage(
+                light_image=helmet_img,
+                dark_image=helmet_img,
+                size=(60, 60)  # Balanced size
+            )
+            
+            # Helmet image centered at top
+            helmet_label = ctk.CTkLabel(
+                brand_frame,
+                image=self.helmet_image,
+                text=""
+            )
+            helmet_label.pack(pady=(0, 8))
+            
+            # Text below image
+            self.logo_label = ctk.CTkLabel(
+                brand_frame, 
+                text="Peacemaker AI", 
+                font=ctk.CTkFont(size=20, weight="bold", family="Roboto"),
+                text_color=COLORS["accent"]
+            )
+            self.logo_label.pack()
+            
+            self.version_label = ctk.CTkLabel(
+                brand_frame, 
+                text="version 1.0", 
+                font=ctk.CTkFont(size=10),
+                text_color=COLORS["text_secondary"]
+            )
+            self.version_label.pack()
+            
+        except Exception as e:
+            # Fallback to text-only if image fails to load
+            print(f"[!] Could not load image: {e}")
+            
+            self.logo_label = ctk.CTkLabel(
+                brand_frame, 
+                text="Peacemaker AI", 
+                font=ctk.CTkFont(size=22, weight="bold", family="Roboto"),
+                text_color=COLORS["accent"]
+            )
+            self.logo_label.pack()
+            
+            self.version_label = ctk.CTkLabel(
+                brand_frame, 
+                text="version 1.0", 
+                font=ctk.CTkFont(size=11),
+                text_color=COLORS["text_secondary"]
+            )
+            self.version_label.pack()
 
         # Separator
         separator = ctk.CTkFrame(self.sidebar_frame, height=2, fg_color=COLORS["border"])
@@ -291,7 +331,7 @@ class AntivirusApp(ctk.CTk):
         # Browse Button inside drop zone
         self.btn_browse = ctk.CTkButton(
             drop_zone,
-            text="📁 Click to Browse File\n(.exe, .dll, or any file)",
+            text="📁 Click to Browse File\n(.exe, .dll only)",
             height=100,
             font=ctk.CTkFont(size=16, family="Roboto"),
             fg_color=COLORS["bg_secondary"],
@@ -733,7 +773,7 @@ class AntivirusApp(ctk.CTk):
         
         ctk.CTkLabel(
             settings_container,
-            text="SENTINEL AI v1.0 Pro\nCybersecurity Protection Suite",
+            text="Peacemaker AI v1.0\nEnhanced Security for Your System",
             font=ctk.CTkFont(size=12, family="Roboto"),
             text_color=COLORS["text_secondary"]
         ).pack(pady=10)
