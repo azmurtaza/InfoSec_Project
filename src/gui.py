@@ -37,6 +37,41 @@ class AntivirusApp(ctk.CTk):
         self.configure(fg_color=COLORS["bg_primary"])
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
+        
+        # Set Window Icon (replaces blue square)
+        self._set_window_icon()
+
+    def _set_window_icon(self):
+        """Set the application window icon with multiple attempts for robustness"""
+        try:
+            from PIL import ImageTk
+            assets_dir = os.path.join(os.path.dirname(__file__), "..", "assets")
+            png_path = os.path.join(assets_dir, "peacemaker_helmet.png")
+            ico_path = os.path.join(assets_dir, "peacemaker_helmet.ico")
+            
+            if os.path.exists(png_path):
+                img = Image.open(png_path)
+                
+                # For Windows, .ico is much more reliable for the taskbar
+                if not os.path.exists(ico_path):
+                    try:
+                        # Save as ICO with multiple sizes
+                        img.save(ico_path, format='ICO', sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+                    except Exception as e:
+                        print(f"[!] Could not create ICO file: {e}")
+                
+                if os.path.exists(ico_path):
+                    self.iconbitmap(ico_path)
+                    print("[+] Window icon set using ICO")
+                else:
+                    # Fallback to iconphoto if ICO fails
+                    self._icon_photo = ImageTk.PhotoImage(img)
+                    self.wm_iconphoto(True, self._icon_photo)
+                    print("[+] Window icon set using PhotoImage fallback")
+            else:
+                print(f"[!] Icon file not found at: {png_path}")
+        except Exception as e:
+            print(f"[!] Could not set window icon: {e}")
 
         # Initialize Logic
         self.scanner = MalwareScanner()

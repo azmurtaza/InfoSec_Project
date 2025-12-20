@@ -208,5 +208,17 @@
         "timestamp": "2025-12-20T23:31:25.996536",
         "threat_type": "Suspicious Executable (Failed Parse)",
         "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-21T00:58:05.661954",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-21T00:59:01.910062",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
     }
 ]
