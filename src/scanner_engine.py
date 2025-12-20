@@ -443,8 +443,9 @@ class MalwareScanner:
         for root, _, files in os.walk(directory):
             for file in files:
                 file_path = os.path.join(root, file)
-                # Filter for PE files (extensions)
-                if file.lower().endswith(('.exe', '.dll', '.sys')):
+                # Filter for PE files (extensions) - includes .exe, .dll, .sys, .scr, .com
+                # IMPORTANT: This explicitly includes DLL files for malware scanning
+                if file.lower().endswith(('.exe', '.dll', '.sys', '.scr', '.com')):
                     if callback:
                         callback(file_path) # Notify what we are scanning
                     

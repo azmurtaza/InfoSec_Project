@@ -1100,13 +1100,13 @@ class AntivirusApp(ctk.CTk):
         """Open file browser for scan"""
         file_path = filedialog.askopenfilename(
             filetypes=[
-                ("Executables", "*.exe"), 
-                ("DLLs", "*.dll"), 
+                ("Executable Files", "*.exe *.dll *.sys *.scr *.com"), 
                 ("All Files", "*.*")
             ]
         )
         if file_path:
             self.start_scan(file_path)
+
 
     def start_scan(self, file_path):
         """Start file scan process"""

@@ -24,14 +24,12 @@ class RealTimeHandler(FileSystemEventHandler):
         # Small delay to ensure file write is complete
         time.sleep(1.0)
         
-        # We only care about executable-like content or specific extensions
-        # to avoid scanning every temp file.
-        valid_extensions = ('.exe', '.dll', '.bat', '.ps1', '.vbs')
+        # Filter for executable-like content to avoid scanning every temp file
+        # IMPORTANT: This explicitly includes .dll, .exe, .sys, and script files
+        valid_extensions = ('.exe', '.dll', '.sys', '.scr', '.com', '.bat', '.ps1', '.vbs', '.msi')
         if not file_path.lower().endswith(valid_extensions):
-             # For demo purposes, we might want to scan everything, but let's be realistic
-             # If the user renamed a file to .txt it might bypass, but for a prototype this is fine.
-             # Actually, let's scan everything that isn't obviously a log or tmp
-             pass
+             # Skip non-executable files to reduce false positives and improve performance
+             return
 
         print(f"[RealTime] Scanning modified/created file: {file_path}")
         try:
