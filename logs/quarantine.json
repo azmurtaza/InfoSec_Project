@@ -256,5 +256,11 @@
         "timestamp": "2025-12-21T15:30:01.380987",
         "threat_type": "Suspicious Executable (Failed Parse)",
         "status": "Restored"
+    },
+    {
+        "original_path": "C:/Games/malw.exe",
+        "timestamp": "2025-12-21T15:50:48.611627",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
     }
 ]

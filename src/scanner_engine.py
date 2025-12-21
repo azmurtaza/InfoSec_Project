@@ -23,30 +23,52 @@ class MalwareScanner:
         self.EICAR_STRING = rb"X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
         
         # 2. Load Models (Ensemble or Single)
-        print(f"[*] Loading model from {self.model_path}...")
+        # Note: We prioritize the 'ensemble_classifier.pkl' wrapper created by train_ensemble.py
+        # which provides a unified interface for the 3-model ensemble.
+        print(f"[*] Loading model system from {self.models_dir}...")
         
-        # Try to load ensemble first
         self.ensemble_models = []
         self.use_ensemble = False
         
-        for i in range(3):
-            ensemble_path = os.path.join(self.models_dir, f'ensemble_model_{i}.pkl')
-            if os.path.exists(ensemble_path):
-                try:
-                    model = joblib.load(ensemble_path)
-                    self.ensemble_models.append(model)
-                except:
-                    pass
-        
-        if len(self.ensemble_models) >= 2:
-            print(f"[+] Loaded {len(self.ensemble_models)} ensemble models!")
-            self.use_ensemble = True
-            self.model = self.ensemble_models[0]  # For compatibility
-        else:
-            # Fallback to single model
+        # Priority 1: Unified Ensemble Wrapper
+        wrapper_path = os.path.join(self.models_dir, 'ensemble_classifier.pkl')
+        if os.path.exists(wrapper_path):
             try:
-                self.model = joblib.load(self.model_path)
-                print("[+] Loaded single model")
+                wrapper = joblib.load(wrapper_path)
+                self.ensemble_models = wrapper.get('models', [])
+                if len(self.ensemble_models) >= 2:
+                    print(f"[+] Loaded ensemble from unified wrapper ({len(self.ensemble_models)} models)!")
+                    self.use_ensemble = True
+                    self.model = self.ensemble_models[0]
+            except Exception as e:
+                print(f"[!] Warning: Could not load ensemble wrapper: {e}")
+
+        # Priority 2: Manual Ensemble loading (Compatibility)
+        if not self.use_ensemble:
+            for i in range(3):
+                ensemble_path = os.path.join(self.models_dir, f'ensemble_model_{i}.pkl')
+                if os.path.exists(ensemble_path):
+                    try:
+                        model = joblib.load(ensemble_path)
+                        self.ensemble_models.append(model)
+                    except:
+                        pass
+            
+            if len(self.ensemble_models) >= 2:
+                print(f"[+] Loaded {len(self.ensemble_models)} manual ensemble models!")
+                self.use_ensemble = True
+                self.model = self.ensemble_models[0]
+
+        # Priority 3: Fallback to single model
+        if not self.use_ensemble:
+            try:
+                if os.path.exists(self.model_path):
+                    self.model = joblib.load(self.model_path)
+                    print("[+] Loaded single model")
+                else:
+                    print(f"[!] Critical Error: No models found in {self.models_dir}")
+                    self.model = None
+                    return
             except Exception as e:
                 print(f"[!] Critical Error loading model: {e}")
                 self.model = None
@@ -59,7 +81,7 @@ class MalwareScanner:
         # Setup Cloud Reputation Checker
         self.cloud_checker = CloudReputationChecker()
         
-        print("[+] Model, Ember Adapter, and Cloud Reputation Checker loaded successfully!")
+        print("[+] Model System, Ember Adapter, and Cloud Reputation Checker loaded successfully!")
 
     def calculate_file_hash(self, file_path):
         """Calculates SHA256 hash of a file."""
