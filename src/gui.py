@@ -1337,6 +1337,11 @@ class AntivirusApp(ctk.CTk):
             self.notification_manager.notify_malware_detected(fname)
             self.notification_manager.notify_scan_complete("malware", fname)
             
+            # AUTO-QUARANTINE LOGIC
+            if self.sw_auto_q.get() == 1:
+                print(f"[*] Auto-Quarantining high threat: {fname}")
+                self.after(500, self.action_quarantine)
+            
         elif is_suspicious:
             # SUSPICIOUS FILE
             self.result_card.configure(border_color=COLORS["warning"])

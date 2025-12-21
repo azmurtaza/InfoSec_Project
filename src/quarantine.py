@@ -175,6 +175,12 @@ def restore_file(original_path):
         return f"Error: Quarantined file {locked_name} not found."
         
     try:
+        # 0. Ensure destination directory exists
+        parent_dir = os.path.dirname(original_path)
+        if not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
+            print(f"[*] Re-created missing directory: {parent_dir}")
+
         # Move back
         shutil.move(source, original_path)
         update_log_status(original_path, "Restored")

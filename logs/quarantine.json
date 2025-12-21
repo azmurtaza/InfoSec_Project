@@ -220,5 +220,41 @@
         "timestamp": "2025-12-21T00:59:01.910062",
         "threat_type": "Suspicious Executable (Failed Parse)",
         "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/malw.exe",
+        "timestamp": "2025-12-21T15:14:28.710754",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Users/husna/Downloads/infosec/my code backup/cpu-z_2.16-en.exe",
+        "timestamp": "2025-12-21T15:15:35.268206",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
+    },
+    {
+        "original_path": "test_extension_check.exe",
+        "timestamp": "2025-12-21T15:21:37.759183",
+        "threat_type": "Verification Test",
+        "status": "Missing"
+    },
+    {
+        "original_path": "RestoredFromVault\\Windows.Web.Diagnostics.dll",
+        "timestamp": "2025-12-21T15:23:26.334411",
+        "threat_type": "Unknown (Orphan)",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:\\Users\\husna\\Downloads\\infosec\\InfoSec_Project\\temp_restore_test\\subdir\\test_file.exe",
+        "timestamp": "2025-12-21T15:26:32.018728",
+        "threat_type": "Robustness Test",
+        "status": "Restored"
+    },
+    {
+        "original_path": "C:/Games/malw.exe",
+        "timestamp": "2025-12-21T15:30:01.380987",
+        "threat_type": "Suspicious Executable (Failed Parse)",
+        "status": "Restored"
     }
 ]
